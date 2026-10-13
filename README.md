@@ -1,13 +1,152 @@
-# 🌊 CreateFlowArrow Tool | أداة إنشاء أسهم اتجاه السريان
+<div align="center">
+
+# 🌊 CreateFlowArrow Tool
+### Flow Direction Arrows & QA/QC Gravity Networks Engine for ArcGIS
+### أداة إنشاء أسهم اتجاه السريان وتدقيق شبكات الانحدار والجاذبية في ArcGIS
 
 [![ArcGIS Pro](https://img.shields.io/badge/ArcGIS%20Pro-2.x%20%7C%203.x-green.svg)](https://www.esri.com/en-us/arcgis/products/arcgis-pro/overview)
 [![ArcGIS Desktop](https://img.shields.io/badge/ArcMap-10.1%2B-blue.svg)](https://desktop.arcgis.com/en/arcmap/)
 [![Python](https://img.shields.io/badge/Python-2.7%20%7C%203.x-yellow.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](LICENSE)
 
-> **أداة معالجة جغرافية متقدمة (ArcPy Geoprocessing Tool) لإنشاء أسهم اتجاه السريان وتدقيق جودة شبكات البنية التحتية بالجاذبية (صرف صحي، صرف أمطار، تخفيض مياه جوفية) تلقائياً على كل من ArcMap و ArcGIS Pro.**
+[ 🇬🇧 English Documentation ](#-english-documentation) • [ 🇸🇦 الشرح باللغة العربية ](#-الشرح-باللغة-العربية)
+
+</div>
 
 ---
+
+# 🇬🇧 English Documentation
+
+## 📖 Overview & Engineering Concept
+
+In civil engineering and municipal infrastructure GIS projects, gravity-driven conveyance networks:
+- 🌧️ **Stormwater Drainage & Flood Control Networks**
+- 💧 **Groundwater Lowering / Dewatering Networks**
+- 🚽 **Sanitary Sewer & Wastewater Networks**
+
+Fluid conveyance relies strictly on topographical gravity gradient—moving naturally from higher hydraulic grade to lower hydraulic grade ($Z_{upstream} > Z_{downstream}$). To ensure the validity of GIS topology, hydraulic modeling (e.g. SWMM, SewerGEMS, InfoWorks ICM), and spatial asset management:
+**Pipe polyline features must be digitized strictly in the true direction of physical flow (from Upstream Manhole to Downstream Manhole).**
+
+### The Industry Challenge:
+Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed field CAD lines frequently suffer from:
+1. **No visual flow arrow symbology**, making manual flow direction verification exhausting across thousands of pipes.
+2. **Reversed digitizing direction errors** (pipes drawn uphill, from downstream to upstream), which breaks hydraulic network traces, disconnects watershed routing, and corrupts network calculations.
+
+### The Solution:
+**CreateFlowArrow** is an advanced, standalone ArcGIS Python Toolbox (`.pyt`) that:
+1. Generates geometric flow direction arrows (**Polygon** triangles or **Polyline** open V-arrows) aligned precisely at each pipe's mathematical **midpoint**.
+2. Aligns arrow center-of-gravity (centroid) with the pipe line to eliminate visual distortion.
+3. Calculates instantaneous **tangents along curves** to guarantee smooth flow orientation even on curved conduit alignments.
+4. **Smart Node Invert Alignment:** Matches pipe endpoints with optional manhole/node points, comparing actual invert elevations ($Z_{start}$ vs $Z_{end}$) to ensure arrows always point in the true downhill direction.
+5. **Auto-Flip Reversed Pipe Lines:** Optionally reverses the digitization vertices of uphill/reversed pipes in-place directly within the source layer, correcting errors with a single click.
+
+---
+
+## 📸 Visual Demonstration (Before & After)
+
+| Before Tool Execution (Raw lines with unknown flow directions) | After Tool Execution (Flow arrows aligned with downhill gravity flow) |
+| :---: | :---: |
+| ![Before](assets/before.png) | ![After](assets/after.png) |
+
+---
+
+## 🚀 Key Features
+
+- 🔄 **Dual-Platform Native Compatibility:**
+  Seamlessly runs in both **ArcMap 10.1+ (Python 2.7)** and **ArcGIS Pro 2.x / 3.x (Python 3.x)** with automatic environment detection.
+- 📦 **Self-Contained Python Toolbox (`.pyt`):**
+  Zero complex dependencies or broken script paths. Double-click and execute directly.
+- 📐 **Centroid Midpoint Alignment:**
+  Calculates the exact triangle centroid $(X_c, Y_c)$ and applies an analytical offset so the arrow's center of gravity coincides flawlessly with the 50% line midpoint.
+- 🔀 **Flexible Geometry Outputs (Polygon vs. Polyline):**
+  Generate closed triangular arrowheads (`Polygon`) or open cartographic V-arrows (`Polyline`).
+- 🎯 **Smart Node Invert Elevation Alignment:**
+  Accepts an optional manhole point layer with an Invert Elevation field. High-speed spatial grid hashing snaps endpoints to manholes, routing arrows from higher elevation to lower elevation.
+- 🔄 **In-Place Auto-Flip Correction:**
+  Optionally reverses the vertex order of uphill pipe polylines in-place so your source network geometry becomes 100% hydraulically correct.
+- 🔄 **Local Curve Tangent Calculation:**
+  Evaluates the instantaneous slope between 49% and 51% along the curve, avoiding crude endpoint straight-line simplifications.
+- 📋 **Full Attribute Preservation:**
+  Inherits all original pipe attributes (diameter, material, length, slope) with an `ORIG_FID` key.
+- ⚠️ **Automated QA/QC Elevation Inversion Reporting:**
+  Populates `QA_FLOW_STATUS`, `START_INV`, `END_INV`, and `INVERT_DROP` fields to flag adverse slopes (`REVERSED`).
+- 🗺️ **Automatic Add to Active Map:**
+  Dynamically loads the generated arrow layer into the active Table of Contents (TOC) / Contents pane.
+- 🧪 **Bundled Sample Training Data (`data/`):**
+  Includes a sample File Geodatabase (`data/TEST.gdb`) and Shapefiles (`data/sample_gravity_pipes.shp`, `data/sample_manhole_nodes.shp`) for immediate testing.
+
+---
+
+## 🛠️ Engineering Workflow Architecture
+
+```mermaid
+flowchart TD
+    A["Input Pipe Lines (Polyline)"] --> B["Extract Start & End Endpoints"]
+    NP["Optional Node Points & Inverts Layer"] -.-> C["Fast Spatial Grid Matching & Invert Extraction"]
+    B --> C
+    C --> D{"Node Inverts Available?"}
+    D -- "Yes (Start Invert < End Invert)" --> E["Flag Adverse Slope & Orient Arrow Downhill"]
+    D -- "Normal or No Node Layer" --> F["Orient Arrow Along Digitized Direction"]
+    E --> G["Calculate Local Tangent & Midpoint Centroid Offset"]
+    F --> G
+    G --> H["Construct Flow Arrow Geometry (Polygon / Polyline)"]
+    E -.-> I["Auto-Flip Source Pipe Polyline In-Place (Optional)"]
+    H --> J["Auto-Add Layer to Active Map / TOC"]
+```
+
+---
+
+## 💻 Installation & Usage Guide
+
+### 1. ArcGIS Pro:
+1. Clone or download the repository:
+   ```bash
+   git clone https://github.com/ahmadibrahim4geo/Create-FlowArrow-Tool.git
+   ```
+2. Open your project in **ArcGIS Pro**.
+3. In the **Catalog** pane, right-click **Toolboxes** and select **Add Toolbox**.
+4. Browse to the folder and pick `CreateFlowArrow.pyt`.
+5. Open **Create Flow Direction Arrows**.
+6. Set your inputs and click **Run**.
+
+### 2. ArcMap:
+1. Open your map document in **ArcMap**.
+2. In the **Catalog** window, navigate to Folder Connections and open `CreateFlowArrow.pyt`.
+3. Fill in the parameters and click **OK**.
+4. The flow arrows will appear immediately in your Data Frame.
+
+---
+
+## ⚙️ Parameters Reference Table
+
+| # | Parameter | Data Type | Required / Optional | Default Value | Description |
+|---|---|---|---|---|---|
+| **0** | **Input Pipe Lines** | Feature Layer (Polyline) | Required | — | Input gravity pipe network lines layer. |
+| **1** | **Output Geodatabase or Workspace** | Workspace / GDB | Required | — | Target File Geodatabase (.gdb) to store the arrows layer. |
+| **2** | **Output Layer Name** | String | Required | `Flow_Direction_Arrows` | Name of the output arrow feature class. |
+| **3** | **Output Geometry Type** | String (Choice) | Required | `Polygon` | Geometry type: `Polygon` (closed triangle) or `Polyline` (open V-arrow). |
+| **4** | **Arrow Base Width (Meters)** | Double | Required | `2.0` | Width of the arrow base in map linear units (meters). |
+| **5** | **Arrow Height / Length (Meters)** | Double | Required | `5.0` | Length of the arrow from base to tip in map units (meters). |
+| **6** | **Transfer Pipe Attributes** | Boolean | Optional | `True` | Copy all original pipe attributes to output arrows with `ORIG_FID`. |
+| **7** | **Optional Node Points Layer** | Feature Layer (Point) | Optional | — | Manhole/junction points layer snapped to pipe endpoints. |
+| **8** | **Node Invert Elevation Field** | Field (Numeric) | Optional | — | Invert elevation field (enables flow verification: Higher $Z$ to Lower $Z$). |
+| **9** | **Auto-Flip Reversed Pipe Lines** | Boolean | Optional | `False` | Automatically flips reversed source pipe polylines in-place to follow gravity. |
+
+---
+
+## 🧪 Sample Training Dataset (`data/`)
+
+The repository includes a ready-to-use dataset in the `data/` directory:
+- **`TEST.gdb`**: File Geodatabase containing:
+  - `GW_PIPES`: Groundwater drainage pipes with hydraulic properties.
+  - `GW_MH`: Manhole points with the `INVERT_M` elevation field.
+- **`sample_gravity_pipes.shp`**: Sample shapefile containing 4 normal pipes and 2 intentionally reversed pipes (`P-103` & `P-105`).
+- **`sample_manhole_nodes.shp`**: Manholes snapped to pipe ends with invert elevations.
+- See `data/README.md` for a quick step-by-step walkthrough.
+
+---
+
+# 🇸🇦 الشرح باللغة العربية
 
 ## 📖 فكرة المشروع والمشكلة الهندسية (Project Concept)
 
@@ -24,18 +163,10 @@
 2. **تحتوي على مواسير رُسمت بالخطأ باتجاه عكسي** (من أسفل إلى أعلى)، مما يؤدي لخلل في التحليلات الهيدروليكية وحسابات الشبكة.
 
 ### الحل الذي تقدمه الأداة:
-تقوم أداة **CreateFlowArrow** بقراءة طبقة خطوط المواسير وبناء طبقة أسهم اتجاه تعبر عن سريان كل ماسورة، حيث يوضع السهم بدقة في منتصف كل ماسورة، ويتجه من **نقطة البداية (Start Point)** إلى **نقطة النهاية (End Point)**.
+تقوم أداة **CreateFlowArrow** بقراءة طبقة خطوط المواسير وبناء طبقة أسهم اتجاه تعبر عن سريان كل ماسورة، حيث يوضع السهم بدقة في منتصف كل ماسورة، ويتجه من **نقطة البداية (Start Point)** إلى **نقطة النهاية (End Point)** أو يتبع مسار مناسيب المطابق آلياً من الأعلى للأسفل مع إمكانية تصحيح رسم الخطوط المعكوسة فوراً.
 
 > 🎯 **أداة تدقيق ورقابة جودة (QA/QC Tool):**
-> بمجرد تشغيل الأداة، إذا لاحظ المهندس سهماً يتجه بعكس ميل الأرض أو عكس اتجاه المصب، فهذا **دليل بصري وهندسي قاطع** على أن هذه الماسورة قد رُسمت باتجاه خاطئ ويجب تصحيحها فوراً باستخدام أداة `Flip Line`!
-
----
-
-## 📸 المعاينة الميدانية (Visual Demonstration - Before & After)
-
-| قبل تشغيل الأداة (شبكة بدون أسهم اتجاهات) | بعد تشغيل الأداة (توليد أسهم السريان بدقة في المنتصف) |
-| :---: | :---: |
-| ![Before](assets/before.png) | ![After](assets/after.png) |
+> بمجرد تشغيل الأداة، إذا لاحظ المهندس سهماً يتجه بعكس ميل الأرض أو عكس اتجاه المصب، فهذا **دليل بصري وهندسي قاطع** على أن هذه الماسورة قد رُسمت باتجاه خاطئ ويجب تصحيحها فوراً!
 
 ---
 
@@ -131,6 +262,7 @@ Create FlowArrow Tool/
 │   ├── before.png               # صورة المعاينة قبل تشغيل الأداة
 │   └── after.png                # صورة المعاينة بعد توليد الأسهم
 ├── data/                        # بيانات جغرافية اختبارية جاهزة للتدريب
+│   ├── TEST.gdb/                # قاعدة بيانات حقيقية بها شبكة مياه جوفية ومطابق بمناسيب
 │   ├── sample_gravity_pipes.shp # خطوط مواسير اختبارية (بها مواسير معكوسة)
 │   ├── sample_manhole_nodes.shp # نقاط مطابق اختبارية بمناسيب Inverts حقيقية
 │   └── README.md                # دليل استخدام البيانات التدريبية
@@ -148,11 +280,8 @@ Create FlowArrow Tool/
 ## 💡 نصائح تدقيق الجودة (QA/QC Tips)
 
 - **كيف أتعامل مع ماسورة معكوسة؟**
-  1. فعّل شريط التعديل (**Editor**).
-  2. حدد الماسورة التي يشير سهمها بالعكس.
-  3. انقر على أداة تعديل الرؤوس (**Edit Vertices**).
-  4. اضغط بالزر الأيمن على الخط واختر **Flip Line** لعكس اتجاه الرسم.
-  5. أعد تشغيل الأداة لمشاهدة السهم وقد تم تصحيحه فوراً!
+  1. يمكنك ببساطة تفعيل خيار **Auto-Flip Reversed Pipe Lines** في الأداة لتصحيحها آلياً بنقرة واحدة!
+  2. أو يدوياً: فعّل شريط التعديل (**Editor**)، حدد الماسورة التي يشير سهمها بالعكس، انقر على **Edit Vertices**، ثم اضغط بالزر الأيمن على الخط واختر **Flip Line** لعكس اتجاه الرسم.
 
 ---
 
@@ -170,4 +299,4 @@ Create FlowArrow Tool/
 هذا المشروع مرخص تحت رخصة **MIT License** - راجع ملف [LICENSE](LICENSE) لمزيد من التفاصيل.
 
 ---
-**صُنع لخدمة مهندسي ومختصي نظم المعلومات الجغرافية والبنية التحتية.** 🚀
+**صُنع لخدمة مهندسي ومختصي نظم المعلومات الجغرافية والبنية التحتية حول العالم.** 🚀
