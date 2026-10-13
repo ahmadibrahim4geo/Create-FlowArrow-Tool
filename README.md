@@ -70,7 +70,7 @@ flowchart TD
 ### 1. في برنامج ArcGIS Pro:
 1. قم بتحميل أو استنساخ المشروع:
    ```bash
-   git clone https://github.com/your-username/CreateFlowArrow-Tool.git
+   git clone https://github.com/ahmadibrahim4geo/Create-FlowArrow-Tool.git
    ```
 2. افتح مشروعك في **ArcGIS Pro**.
 3. في لوحة **Catalog**، انقر بزر الفأرة الأيمن على **Toolboxes** واختر **Add Toolbox**.
@@ -122,6 +122,16 @@ Create FlowArrow Tool/
   3. انقر على أداة تعديل الرؤوس (**Edit Vertices**).
   4. اضغط بالزر الأيمن على الخط واختر **Flip Line** لعكس اتجاه الرسم.
   5. أعد تشغيل الأداة لمشاهدة السهم وقد تم تصحيحه فوراً!
+
+---
+
+## 👨‍💻 المطور والتواصل (Author & Contact)
+
+- **المطور:** أحمد إبراهيم (Ahmad Ibrahim)
+- **الصفة:** أخصائي نظم معلومات جغرافية (GIS) وكارتوجرافي ومطور برمجيات مكانية
+- **البريد الإلكتروني:** [ahmadibrahim.geo@gmail.com](mailto:ahmadibrahim.geo@gmail.com)
+- **حساب GitHub:** [@ahmadibrahim4geo](https://github.com/ahmadibrahim4geo)
+- **واتساب (استشارات البنية التحتية والهيدرولوجيا):** [+201111915925](https://wa.me/201111915925)
 
 ---
 

@@ -30,6 +30,7 @@ Project_index/
 
 # ArcGIS XML metadata and schema locks
 *.mxd.xml
+*.pyt.xml
 *.sde
 *.gdb.zip
 

@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CreateFlowArrow Tool | أداة إنشاء أسهم اتجاه السريان وتدقيق شبكات البنية التحتية</title>
+  <meta name="description" content="أداة جغرافية هندسية متطورة لإنشاء أسهم اتجاه السريان وتدقيق جودة شبكات البنية التحتية (صرف صحي، أمطار، مياه جوفية) في ArcMap و ArcGIS Pro">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#F0FDF4',
+              100: '#DCFCE7',
+              500: '#10B981',
+              600: '#059669',
+              700: '#047857',
+            },
+            ocean: {
+              50: '#F0F9FF',
+              100: '#E0F2FE',
+              400: '#38BDF8',
+              500: '#0284C7',
+              600: '#0369A1',
+              700: '#075985',
+              800: '#0C4A6E',
+              900: '#0F172A',
+              950: '#020617',
+            },
+            solar: {
+              400: '#FBBF24',
+              500: '#F59E0B',
+              600: '#D97706',
+            }
+          },
+          fontFamily: {
+            cairo: ['Cairo', 'sans-serif'],
+            inter: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Cairo & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      transition: all 0.25s ease-in-out;
+    }
+    body.lang-en {
+      font-family: 'Inter', sans-serif;
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card-light {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(2, 132, 199, 0.15);
+    }
+    .glow-cyan {
+      box-shadow: 0 0 35px -5px rgba(2, 132, 199, 0.35);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 35px -5px rgba(16, 185, 129, 0.35);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #0284c7;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-ocean-500 selection:text-white">
+
+  <!-- ========================================================================= -->
+  <!-- 1. NAVIGATION BAR -->
+  <!-- ========================================================================= -->
+  <nav class="fixed top-0 left-0 right-0 z-50 glass-card border-b border-slate-800 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20">
+        
+        <!-- Logo & Brand -->
+        <a href="#" class="flex items-center gap-3 group">
+          <div class="relative w-11 h-11 rounded-xl bg-gradient-to-tr from-ocean-600 via-ocean-500 to-brand-500 flex items-center justify-center text-white shadow-lg shadow-ocean-500/20 transition-transform duration-300 group-hover:scale-105">
+            <i class="fa-solid fa-arrow-trend-up text-xl transform -rotate-45"></i>
+            <span class="absolute -bottom-1 -right-1 w-3 h-3 bg-brand-500 border-2 border-slate-950 rounded-full animate-ping"></span>
+            <span class="absolute -bottom-1 -right-1 w-3 h-3 bg-brand-500 border-2 border-slate-950 rounded-full"></span>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xl sm:text-2xl font-black tracking-tight text-white group-hover:text-ocean-400 transition-colors">CreateFlowArrow</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-ocean-500/20 text-ocean-400 border border-ocean-500/40 font-bold font-inter">v1.2</span>
+            </div>
+            <p class="text-xs text-slate-400 hidden sm:block" data-i18n="nav_tagline">أداة أسهم اتجاه السريان وتدقيق شبكات الانحدار</p>
+          </div>
+        </a>
+
+        <!-- Desktop Navigation Links -->
+        <div class="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-300">
+          <a href="#about" class="hover:text-ocean-400 transition-colors" data-i18n="nav_about">عن الأداة</a>
+          <a href="#concept" class="hover:text-ocean-400 transition-colors" data-i18n="nav_concept">المفهوم الهندسي</a>
+          <a href="#math" class="hover:text-ocean-400 transition-colors" data-i18n="nav_math">الخوارزمية الرياضية</a>
+          <a href="#params" class="hover:text-ocean-400 transition-colors" data-i18n="nav_params">البارامترات</a>
+          <a href="#setup" class="hover:text-ocean-400 transition-colors" data-i18n="nav_setup">التثبيت والتشغيل</a>
+          <a href="#downloads" class="hover:text-ocean-400 transition-colors" data-i18n="nav_downloads">التحميلات</a>
+          <a href="#author" class="hover:text-ocean-400 transition-colors" data-i18n="nav_author">المطور</a>
+        </div>
+
+        <!-- Action Buttons & Language Switcher -->
+        <div class="flex items-center gap-3">
+          <!-- Language Toggle Button -->
+          <button id="langToggleBtn" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all shadow-sm">
+            <i class="fa-solid fa-globe text-ocean-400"></i>
+            <span id="langText">English</span>
+          </button>
+
+          <!-- GitHub Repo Button -->
+          <a href="https://github.com/ahmadibrahim4geo/Create-FlowArrow-Tool" target="_blank" rel="noopener noreferrer" class="hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-lg bg-gradient-to-r from-ocean-600 to-ocean-500 hover:from-ocean-500 hover:to-ocean-400 text-white text-xs font-bold transition-all shadow-md">
+            <i class="fa-brands fa-github text-sm"></i>
+            <span>GitHub</span>
+          </a>
+
+          <!-- Mobile Menu Button -->
+          <button id="mobileMenuBtn" class="lg:hidden p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white">
+            <i class="fa-solid fa-bars text-lg"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Mobile Dropdown Menu -->
+    <div id="mobileMenu" class="hidden lg:hidden glass-card border-b border-slate-800 px-4 pt-3 pb-6 space-y-3">
+      <a href="#about" class="block py-2 text-slate-300 hover:text-ocean-400" data-i18n="nav_about">عن الأداة</a>
+      <a href="#concept" class="block py-2 text-slate-300 hover:text-ocean-400" data-i18n="nav_concept">المفهوم الهندسي</a>
+      <a href="#math" class="block py-2 text-slate-300 hover:text-ocean-400" data-i18n="nav_math">الخوارزمية الرياضية</a>
+      <a href="#params" class="block py-2 text-slate-300 hover:text-ocean-400" data-i18n="nav_params">البارامترات</a>
+      <a href="#setup" class="block py-2 text-slate-300 hover:text-ocean-400" data-i18n="nav_setup">التثبيت والتشغيل</a>
+      <a href="#downloads" class="block py-2 text-slate-300 hover:text-ocean-400" data-i18n="nav_downloads">التحميلات</a>
+      <a href="#author" class="block py-2 text-slate-300 hover:text-ocean-400" data-i18n="nav_author">المطور</a>
+    </div>
+  </nav>
+
+  <!-- ========================================================================= -->
+  <!-- 2. HERO SECTION -->
+  <!-- ========================================================================= -->
+  <header class="relative pt-36 pb-24 overflow-hidden border-b border-slate-800">
+    <!-- Ambient Background Light -->
+    <div class="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-ocean-600/15 rounded-full blur-[140px] pointer-events-none"></div>
+    <div class="absolute top-1/3 left-1/4 w-[400px] h-[400px] bg-brand-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        
+        <!-- Text & Call to Actions (7 Cols) -->
+        <div class="lg:col-span-7 space-y-6 text-center lg:text-start">
+          
+          <!-- Badges Banner -->
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-ocean-500/30 text-ocean-300 text-xs font-semibold backdrop-blur-md">
+            <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+            <span data-i18n="hero_badge">توافق مزدوج كامل • يعمل تلقائياً على ArcMap 10.1+ و ArcGIS Pro</span>
+          </div>
+
+          <!-- Main Title -->
+          <h1 class="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight tracking-tight">
+            <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-ocean-300" data-i18n="hero_title_1">أداة CreateFlowArrow</span>
+            <br>
+            <span class="text-2xl sm:text-3xl md:text-4xl text-ocean-400 font-extrabold" data-i18n="hero_title_2">إنشاء أسهم اتجاه السريان وتدقيق جودة شبكات البنية التحتية</span>
+          </h1>
+
+          <!-- English Acronym Subtitle -->
+          <p class="text-sm font-semibold tracking-wide text-brand-400 font-inter">
+            INFRASTRUCTURE GRAVITY NETWORKS FLOW ARROW & QA/QC AUDITING ENGINE
+          </p>
+
+          <!-- Descriptive Paragraph -->
+          <p class="text-base sm:text-lg text-slate-300 leading-relaxed font-normal" data-i18n="hero_desc">
+            أداة برمجية متطورة ومستقلة (.pyt) مخصصة لبيئة نظم المعلومات الجغرافية (ArcGIS). تعمل على بناء طبقة مضلعات هندسية تعبر عن اتجاه سريان شبكات المواسير بالجاذبية (صرف صحي، صرف مطري، مياه جوفية)، بالاعتماد الدقيق على اتجاه الرسم وتمركز مركز الثقل في منتصف الماسورة، مع فحص آلي للمناسيب لكشف المواسير المعكوسة فوراً.
+          </p>
+
+          <!-- Interactive Action Buttons -->
+          <div class="flex flex-wrap items-center justify-center lg:justify-start gap-4 pt-2">
+            <a href="CreateFlowArrow.pyt" download class="px-6 py-3.5 rounded-xl bg-gradient-to-r from-ocean-600 to-ocean-500 hover:from-ocean-500 hover:to-ocean-400 text-white font-bold text-sm shadow-lg shadow-ocean-600/30 flex items-center gap-2 transition-all transform hover:-translate-y-0.5">
+              <i class="fa-solid fa-download"></i>
+              <span data-i18n="hero_btn_download">تحميل صندوق الأدوات (.pyt)</span>
+            </a>
+            <a href="https://github.com/ahmadibrahim4geo/Create-FlowArrow-Tool" target="_blank" rel="noopener noreferrer" class="px-6 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 font-bold text-sm shadow-md flex items-center gap-2 transition-all transform hover:-translate-y-0.5">
+              <i class="fa-brands fa-github text-base"></i>
+              <span data-i18n="hero_btn_github">تصفح المستودع على GitHub</span>
+            </a>
+            <a href="TOOL_DOCUMENTATION.txt" target="_blank" class="px-5 py-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-ocean-300 border border-ocean-500/30 font-semibold text-sm flex items-center gap-2 transition-all">
+              <i class="fa-solid fa-file-lines"></i>
+              <span data-i18n="hero_btn_doc">دليل المستخدم النصي</span>
+            </a>
+          </div>
+
+          <!-- Feature Highlights Tags -->
+          <div class="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-2 text-xs text-slate-400">
+            <span class="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 font-inter"><i class="fa-solid fa-code text-ocean-400 mr-1 ml-1"></i> Python 2.7 & 3.x</span>
+            <span class="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 font-inter"><i class="fa-solid fa-map text-brand-400 mr-1 ml-1"></i> ArcMap & Pro</span>
+            <span class="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 font-inter"><i class="fa-solid fa-crosshairs text-solar-400 mr-1 ml-1"></i> Centroid Alignment</span>
+            <span class="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 font-inter"><i class="fa-solid fa-shield-halved text-emerald-400 mr-1 ml-1"></i> QA/QC Inversion Check</span>
+            <span class="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 font-inter"><i class="fa-solid fa-box text-pink-400 mr-1 ml-1"></i> All-In-One .pyt</span>
+          </div>
+
+        </div>
+
+        <!-- Visual Graphical Illustration (5 Cols) -->
+        <div class="lg:col-span-5 flex justify-center relative">
+          <div class="relative group w-full max-w-md">
+            
+            <!-- Orbiting Glow Rings -->
+            <div class="absolute -inset-4 bg-gradient-to-r from-ocean-500 via-brand-500 to-solar-500 rounded-3xl blur-2xl opacity-30 group-hover:opacity-50 transition duration-700 animate-pulse"></div>
+            
+            <!-- Graphic Card -->
+            <div class="relative rounded-3xl p-6 bg-slate-900/90 border-2 border-ocean-500/40 shadow-2xl overflow-hidden backdrop-blur-xl space-y-6">
+              
+              <!-- Mini Pipeline Demo Visualizer -->
+              <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 relative overflow-hidden">
+                <div class="flex items-center justify-between text-xs text-slate-400 mb-4 font-mono">
+                  <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-ocean-400"></span> Start Node (Upstream)</span>
+                  <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> End Node (Downstream)</span>
+                </div>
+
+                <!-- SVG Pipeline and Centered Flow Arrow -->
+                <svg viewBox="0 0 400 120" class="w-full h-auto">
+                  <defs>
+                    <linearGradient id="pipeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#0284c7" />
+                      <stop offset="100%" stop-color="#10b981" />
+                    </linearGradient>
+                    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#38bdf8" />
+                      <stop offset="100%" stop-color="#34d399" />
+                    </linearGradient>
+                  </defs>
+
+                  <!-- Pipe Line -->
+                  <line x1="30" y1="60" x2="370" y2="60" stroke="url(#pipeGrad)" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 4" opacity="0.4" />
+                  <line x1="30" y1="60" x2="370" y2="60" stroke="url(#pipeGrad)" stroke-width="4" stroke-linecap="round" />
+
+                  <!-- Start Node -->
+                  <circle cx="30" cy="60" r="10" fill="#0369a1" stroke="#38bdf8" stroke-width="3" />
+                  <text x="30" y="90" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="monospace">MH-01 (Invert: 10.5m)</text>
+
+                  <!-- End Node -->
+                  <circle cx="370" cy="60" r="10" fill="#047857" stroke="#34d399" stroke-width="3" />
+                  <text x="370" y="90" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="monospace">MH-02 (Invert: 9.8m)</text>
+
+                  <!-- Perfectly Centered Polygon Arrow -->
+                  <!-- Centroid is exactly at x=200, y=60 -->
+                  <polygon points="185,46 185,74 230,60" fill="url(#arrowGrad)" stroke="#ffffff" stroke-width="2" class="filter drop-shadow-md" />
+
+                  <!-- Midpoint Marker -->
+                  <circle cx="200" cy="60" r="3" fill="#f59e0b" />
+                  <line x1="200" y1="20" x2="200" y2="55" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="2 2" />
+                  <text x="200" y="15" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="bold">Midpoint Centroid</text>
+                </svg>
+              </div>
+
+              <!-- Real-time QA Verification Box -->
+              <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                  <span class="text-slate-400 block text-[10px]">Flow Status:</span>
+                  <span class="font-bold text-emerald-400 flex items-center gap-1 mt-0.5">
+                    <i class="fa-solid fa-circle-check"></i> Normal Gravity Flow
+                  </span>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+                  <span class="text-slate-400 block text-[10px]">QA/QC Inversion:</span>
+                  <span class="font-bold text-ocean-400 flex items-center gap-1 mt-0.5">
+                    <i class="fa-solid fa-check-double"></i> Verified Correct
+                  </span>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- 3. METRICS STRIP -->
+  <!-- ========================================================================= -->
+  <section class="py-10 bg-slate-900/60 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 text-center">
+        
+        <div class="p-4 rounded-xl glass-card border-slate-800">
+          <p class="text-3xl font-black text-ocean-400 font-inter">100%</p>
+          <p class="text-xs font-bold text-slate-300 mt-1" data-i18n="metric_dual">توافق تام ArcMap & Pro</p>
+        </div>
+
+        <div class="p-4 rounded-xl glass-card border-slate-800">
+          <p class="text-3xl font-black text-brand-400 font-inter">.pyt</p>
+          <p class="text-xs font-bold text-slate-300 mt-1" data-i18n="metric_pyt">أداة مستقلة متكاملة</p>
+        </div>
+
+        <div class="p-4 rounded-xl glass-card border-slate-800">
+          <p class="text-3xl font-black text-solar-400 font-inter">Start➡️End</p>
+          <p class="text-xs font-bold text-slate-300 mt-1" data-i18n="metric_direction">توجيه دقيق باتجاه الرسم</p>
+        </div>
+
+        <div class="p-4 rounded-xl glass-card border-slate-800">
+          <p class="text-3xl font-black text-purple-400 font-inter">Centroid</p>
+          <p class="text-xs font-bold text-slate-300 mt-1" data-i18n="metric_centroid">محاذاة مركز ثقل السهم</p>
+        </div>
+
+        <div class="p-4 rounded-xl glass-card border-slate-800">
+          <p class="text-3xl font-black text-pink-400 font-inter">Auto-QA</p>
+          <p class="text-xs font-bold text-slate-300 mt-1" data-i18n="metric_qa">كشف السريان العكسي</p>
+        </div>
+
+        <div class="p-4 rounded-xl glass-card border-slate-800">
+          <p class="text-3xl font-black text-emerald-400 font-inter">MIT</p>
+          <p class="text-xs font-bold text-slate-300 mt-1" data-i18n="metric_license">مفتوح المصدر بالكامل</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 4. ABOUT & VALUE PROPOSITION -->
+  <!-- ========================================================================= -->
+  <section id="about" class="py-20 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-xs uppercase font-extrabold tracking-widest text-ocean-400 mb-2 font-inter" data-i18n="about_tag">ABOUT THE TOOL</h2>
+        <h3 class="text-3xl sm:text-4xl font-extrabold text-white" data-i18n="about_heading">ما هي أداة CreateFlowArrow وما القيمة التي تقدمها؟</h3>
+        <p class="text-slate-400 text-sm sm:text-base mt-4 leading-relaxed" data-i18n="about_subheading">
+          صُممت الأداة خصيصاً لحل المشكلات الحرجة التي تواجه مهندسي ومختصي نظم المعلومات الجغرافية في شبكات البنية التحتية بالجاذبية الأرضية؛ حيث تحول فحص الشبكة من ساعات طويلة من التتبع اليدوي إلى مخرجات بصرية وهندسية فورية.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        
+        <!-- Card 1 -->
+        <div class="glass-card p-6 rounded-2xl border-slate-800 hover:border-ocean-500/50 transition duration-300">
+          <div class="w-12 h-12 rounded-xl bg-ocean-500/20 text-ocean-400 flex items-center justify-center text-xl mb-4">
+            <i class="fa-solid fa-arrows-to-circle"></i>
+          </div>
+          <h4 class="text-lg font-bold text-white mb-2" data-i18n="val_card1_title">محاذاة مركز الثقل في المنتصف بدقة</h4>
+          <p class="text-slate-400 text-sm leading-relaxed" data-i18n="val_card1_desc">
+            لا تكتفي الأداة برسم مثلث عشوائي، بل تحسب مركز ثقل المثلث رياضياً (Centroid) وتعيد إزاحته بحيث ينطبق مركز ثقل السهم بدقة متناهية على نقطة منتصف الماسورة تماماً دون أي تشوه بصري.
+          </p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="glass-card p-6 rounded-2xl border-slate-800 hover:border-brand-500/50 transition duration-300">
+          <div class="w-12 h-12 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center text-xl mb-4">
+            <i class="fa-solid fa-shield-virus"></i>
+          </div>
+          <h4 class="text-lg font-bold text-white mb-2" data-i18n="val_card2_title">كشف أخطاء الرسم العكسي (QA/QC)</h4>
+          <p class="text-slate-400 text-sm leading-relaxed" data-i18n="val_card2_desc">
+            السهم ينطلق دائماً من بداية الخط لنهايته. إذا أشار السهم بعكس انحدار الأرض أو المصب، فهذا إثبات فوري بأن الماسورة رُسمت بالمقلوب ويجب تصحيحها فوراً عبر Flip Line.
+          </p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="glass-card p-6 rounded-2xl border-slate-800 hover:border-solar-500/50 transition duration-300">
+          <div class="w-12 h-12 rounded-xl bg-solar-500/20 text-solar-400 flex items-center justify-center text-xl mb-4">
+            <i class="fa-solid fa-bezier-curve"></i>
+          </div>
+          <h4 class="text-lg font-bold text-white mb-2" data-i18n="val_card3_title">دقة التوجيه على المنحنيات</h4>
+          <p class="text-slate-400 text-sm leading-relaxed" data-i18n="val_card3_desc">
+            حساب زاوية المماس اللحظي عند نقطة المنتصف بدلاً من الاعتماد السطحي على طرفي الخط، مما يضمن اتجاه السهم بسلاسة تامة ومحاذاة طبيعية حتى مع المواسير المنحنية والمتعرجة.
+          </p>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="glass-card p-6 rounded-2xl border-slate-800 hover:border-purple-500/50 transition duration-300">
+          <div class="w-12 h-12 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-xl mb-4">
+            <i class="fa-solid fa-table-list"></i>
+          </div>
+          <h4 class="text-lg font-bold text-white mb-2" data-i18n="val_card4_title">نقل كافة البيانات الوصفية</h4>
+          <p class="text-slate-400 text-sm leading-relaxed" data-i18n="val_card4_desc">
+            يتم نسخ جميع سمات الماسورة (رقم الماسورة، القطر، المادة، الطول، الميل، المناسيب) إلى طبقة الأسهم الناتجة، مع إضافة معرف الخط الأصلي (ORIG_FID) لسهولة الاستعلام والتسميات.
+          </p>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="glass-card p-6 rounded-2xl border-slate-800 hover:border-pink-500/50 transition duration-300">
+          <div class="w-12 h-12 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center text-xl mb-4">
+            <i class="fa-solid fa-chart-line-down"></i>
+          </div>
+          <h4 class="text-lg font-bold text-white mb-2" data-i18n="val_card5_title">فحص المناسيب الآلي الذكي</h4>
+          <p class="text-slate-400 text-sm leading-relaxed" data-i18n="val_card5_desc">
+            إذا احتوت الطبقة على مناسيب القاع (ST_INV_M و END_INV_M)، تفحص الأداة انحدار كل ماسورة تلقائياً وتضع وسماً تحذيرياً REVERSED للمواسير التي تم رسمها بعكس الجاذبية.
+          </p>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="glass-card p-6 rounded-2xl border-slate-800 hover:border-emerald-500/50 transition duration-300">
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl mb-4">
+            <i class="fa-solid fa-map-location-dot"></i>
+          </div>
+          <h4 class="text-lg font-bold text-white mb-2" data-i18n="val_card6_title">إضافة تلقائية للخريطة الحالية</h4>
+          <p class="text-slate-400 text-sm leading-relaxed" data-i18n="val_card6_desc">
+            تتعرف الأداة تلقائياً على واجهة ArcMap أو ArcGIS Pro وتضيف الطبقة فور انتهاء المعالجة إلى جدول المحتويات والخريطة النشطة دون أي تدخل يدوي من المستخدم.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 5. ENGINEERING CONCEPT SECTION -->
+  <!-- ========================================================================= -->
+  <section id="concept" class="py-20 bg-slate-900/40 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-xs uppercase font-extrabold tracking-widest text-ocean-400 mb-2 font-inter" data-i18n="concept_tag">ENGINEERING CONCEPT & QA/QC</h2>
+        <h3 class="text-3xl sm:text-4xl font-extrabold text-white" data-i18n="concept_heading">لماذا اتجاه الرسم بالغ الأهمية في شبكات الانحدار؟</h3>
+        <p class="text-slate-400 text-sm sm:text-base mt-4 leading-relaxed" data-i18n="concept_subheading">
+          في شبكات المياه المضغوطة (Pressurized Networks) يمكن للمياه أن تجري في أي اتجاه، ولكن في شبكات الجاذبية هناك مسار إجباري واحد يحكمه انحدار التضاريس.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+        
+        <div class="glass-card p-8 rounded-3xl border-slate-800 space-y-6">
+          <div class="flex items-center gap-3">
+            <span class="w-10 h-10 rounded-xl bg-solar-500/20 text-solar-400 flex items-center justify-center text-xl">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+            </span>
+            <h4 class="text-xl font-extrabold text-white" data-i18n="concept_problem_title">المشكلة الهندسية الشائعة</h4>
+          </div>
+          <p class="text-slate-300 text-sm leading-relaxed" data-i18n="concept_problem_desc">
+            عند استيراد شبكات البنية التحتية من مخططات الأوتوكاد (CAD Drawings) أو الرفع المساحي الميداني، غالباً ما يقوم الرسامون برسم الخطوط بطريقة عشوائية (مثلاً من أسفل لأعلى، أو من اليمين لليسار حسب زاوية الرؤية). هذا يسبب مشاكل جسيمة في:
+          </p>
+          <ul class="space-y-2.5 text-xs text-slate-300">
+            <li class="flex items-center gap-2"><i class="fa-solid fa-xmark text-rose-400"></i> فشل حسابات النمذجة الهيدروليكية (Hydraulic Modeling).</li>
+            <li class="flex items-center gap-2"><i class="fa-solid fa-xmark text-rose-400"></i> أخطاء في تحليل التتبع الشبكي وحساب التجمعات (Upstream / Downstream Trace).</li>
+            <li class="flex items-center gap-2"><i class="fa-solid fa-xmark text-rose-400"></i> صعوبة بالغة في قراءة الخرائط التنفيذية وطباعة لوحات المشاريع.</li>
+          </ul>
+        </div>
+
+        <div class="glass-card p-8 rounded-3xl border-2 border-emerald-500/40 space-y-6 relative overflow-hidden">
+          <div class="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-ocean-500 via-brand-500 to-emerald-400"></div>
+          <div class="flex items-center gap-3">
+            <span class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl">
+              <i class="fa-solid fa-check-double"></i>
+            </span>
+            <h4 class="text-xl font-extrabold text-white" data-i18n="concept_solution_title">حل CreateFlowArrow الفوري</h4>
+          </div>
+          <p class="text-slate-300 text-sm leading-relaxed" data-i18n="concept_solution_desc">
+            تقوم الأداة بتوليد سهم يعبر بصرياً عن اتجاه الخط الفعلي. بمجرد إلقاء نظرة على الخريطة:
+          </p>
+          <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3 text-xs">
+            <div class="flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-check text-emerald-400 text-base mt-0.5"></i>
+              <span class="text-slate-200"><strong>إذا كان السهم يشير للمصب:</strong> الماسورة مرسومة بالاتجاه السليم ولا تتطلب أي إجراء.</span>
+            </div>
+            <div class="flex items-start gap-2.5">
+              <i class="fa-solid fa-circle-exclamation text-solar-400 text-base mt-0.5"></i>
+              <span class="text-slate-200"><strong>إذا كان السهم يشير للمنبع:</strong> تكشف الأداة فوراً أن الماسورة معكوسة، ويكفي استخدام أداة <code>Flip Line</code> لتصحيحها في ثوانٍ.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 6. MATHEMATICAL ALGORITHM SECTION -->
+  <!-- ========================================================================= -->
+  <section id="math" class="py-20 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-xs uppercase font-extrabold tracking-widest text-ocean-400 mb-2 font-inter" data-i18n="math_tag">MATHEMATICAL PRECISION</h2>
+        <h3 class="text-3xl sm:text-4xl font-extrabold text-white" data-i18n="math_heading">الخوارزمية الرياضية والهندسية لتوليد الأسهم</h3>
+        <p class="text-slate-400 text-sm sm:text-base mt-4 leading-relaxed" data-i18n="math_subheading">
+          صيغ رياضية دقيقة مبنية على حساب المثلثات والمماسات الموضعية وهندسة مراكز الثقل.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        
+        <div class="glass-card p-6 rounded-2xl border-slate-800 space-y-3">
+          <span class="px-2.5 py-1 rounded-md bg-ocean-500/20 text-ocean-400 text-xs font-mono font-bold">المرحلة 1</span>
+          <h4 class="text-base font-bold text-white">زاوية المماس اللحظي</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            استخراج نقطة قبل المنتصف (49%) ونقطة بعد المنتصف (51%) وحساب زاوية الاتجاه بالراديان:
+          </p>
+          <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800 font-mono text-[11px] text-ocean-300">
+            θ = atan2(dy, dx)
+          </div>
+        </div>
+
+        <div class="glass-card p-6 rounded-2xl border-slate-800 space-y-3">
+          <span class="px-2.5 py-1 rounded-md bg-brand-500/20 text-brand-400 text-xs font-mono font-bold">المرحلة 2</span>
+          <h4 class="text-base font-bold text-white">حساب رؤوس المثلث</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            إزاحة نقطتي القاعدة يميناً ويساراً بنصف العرض، وإسقاط رأس السهم للأمام بطول الارتفاع:
+          </p>
+          <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800 font-mono text-[11px] text-brand-300">
+            Base = ±(W/2)·sin/cos<br>Tip = H·cos/sin
+          </div>
+        </div>
+
+        <div class="glass-card p-6 rounded-2xl border-slate-800 space-y-3">
+          <span class="px-2.5 py-1 rounded-md bg-solar-500/20 text-solar-400 text-xs font-mono font-bold">المرحلة 3</span>
+          <h4 class="text-base font-bold text-white">مركز الثقل والإزاحة</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            حساب مركز ثقل المثلث ونقله ليتطابق مع منتصف الماسورة تماماً:
+          </p>
+          <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800 font-mono text-[11px] text-solar-300">
+            Centroid = (P1+P2+P3)/3<br>Offset = Mid - Centroid
+          </div>
+        </div>
+
+        <div class="glass-card p-6 rounded-2xl border-slate-800 space-y-3">
+          <span class="px-2.5 py-1 rounded-md bg-purple-500/20 text-purple-400 text-xs font-mono font-bold">المرحلة 4</span>
+          <h4 class="text-base font-bold text-white">تدقيق المناسيب</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            مقارنة مناسيب القاع؛ إذا كان منسوب البداية أقل من النهاية يُوسم السهم بـ REVERSED:
+          </p>
+          <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800 font-mono text-[11px] text-purple-300">
+            ST_INV &lt; END_INV ➡️ REVERSED
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 7. PARAMETERS GUIDE -->
+  <!-- ========================================================================= -->
+  <section id="params" class="py-20 bg-slate-900/40 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-xs uppercase font-extrabold tracking-widest text-ocean-400 mb-2 font-inter" data-i18n="params_tag">TOOL PARAMETERS</h2>
+        <h3 class="text-3xl sm:text-4xl font-extrabold text-white" data-i18n="params_heading">بارامترات وواجهة المستخدم للأداة</h3>
+        <p class="text-slate-400 text-sm sm:text-base mt-4 leading-relaxed" data-i18n="params_subheading">
+          تم تصميم واجهة الأداة لتكون سهلة وبديهية للغاية مع قيم افتراضية مثالية تناسب غالبية مقاييس الرسم.
+        </p>
+      </div>
+
+      <div class="glass-card rounded-2xl border-slate-800 overflow-hidden shadow-xl">
+        <div class="overflow-x-auto">
+          <table class="w-full text-right text-xs sm:text-sm">
+            <thead class="bg-slate-900/90 text-slate-300 border-b border-slate-800 font-bold">
+              <tr>
+                <th class="p-4">#</th>
+                <th class="p-4" data-i18n="th_param">البارامتر</th>
+                <th class="p-4" data-i18n="th_type">النوع</th>
+                <th class="p-4" data-i18n="th_state">الحالة</th>
+                <th class="p-4" data-i18n="th_desc">الوصف والاستخدام</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-300">
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-ocean-400">0</td>
+                <td class="p-4 font-bold text-white">Input Pipes Layer</td>
+                <td class="p-4 font-mono text-xs">Feature Layer</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">مطلوب</span></td>
+                <td class="p-4">طبقة خطوط شبكة المواسير المفتوحة بالخريطة أو ملف Shapefile / Feature Class.</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-ocean-400">1</td>
+                <td class="p-4 font-bold text-white">Output Geodatabase</td>
+                <td class="p-4 font-mono text-xs">Workspace / GDB</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">مطلوب</span></td>
+                <td class="p-4">مسار قاعدة البيانات الجغرافية (.gdb) التي سيتم حفظ الطبقة الناتجة بداخلها.</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-ocean-400">2</td>
+                <td class="p-4 font-bold text-white">Output Layer Name</td>
+                <td class="p-4 font-mono text-xs">String</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">مطلوب</span></td>
+                <td class="p-4">اسم طبقة المضلعات الناتجة (افتراضي: <code>PIPES_FLOW_ARROWS</code>).</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-ocean-400">3</td>
+                <td class="p-4 font-bold text-white">Arrow Base Width</td>
+                <td class="p-4 font-mono text-xs">Double</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">مطلوب</span></td>
+                <td class="p-4">عرض قاعدة مثلث السهم بالمتر بوحدة الخريطة (افتراضي: <code>2.0</code> متر).</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-ocean-400">4</td>
+                <td class="p-4 font-bold text-white">Arrow Height/Length</td>
+                <td class="p-4 font-mono text-xs">Double</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">مطلوب</span></td>
+                <td class="p-4">ارتفاع / طول السهم من القاعدة إلى الرأس بالمتر (افتراضي: <code>5.0</code> متر).</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-ocean-400">5</td>
+                <td class="p-4 font-bold text-white">Transfer Attributes</td>
+                <td class="p-4 font-mono text-xs">Boolean</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-xs">اختياري</span></td>
+                <td class="p-4">نسخ جميع حقول وسمات الماسورة الأصلية لطبقة الأسهم لتمكين التسمية والاستعلام.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 8. SETUP & INSTALLATION -->
+  <!-- ========================================================================= -->
+  <section id="setup" class="py-20 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-xs uppercase font-extrabold tracking-widest text-ocean-400 mb-2 font-inter" data-i18n="setup_tag">SETUP & WORKFLOW</h2>
+        <h3 class="text-3xl sm:text-4xl font-extrabold text-white" data-i18n="setup_heading">طريقة التشغيل في 3 خطوات بسيطة</h3>
+        <p class="text-slate-400 text-sm sm:text-base mt-4 leading-relaxed" data-i18n="setup_subheading">
+          لا تتطلب الأداة أي تثبيت معقد؛ فقط أضف صندوق الأدوات <code>CreateFlowArrow.pyt</code> مباشرة لبرنامجك.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <div class="glass-card p-6 rounded-2xl border-slate-800 text-center space-y-4">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-ocean-500/20 text-ocean-400 flex items-center justify-center text-2xl font-black font-inter">
+            1
+          </div>
+          <h4 class="text-lg font-bold text-white" data-i18n="step1_title">إضافة صندوق الأدوات</h4>
+          <p class="text-xs text-slate-400 leading-relaxed" data-i18n="step1_desc">
+            من نافذة Catalog في ArcMap أو ArcGIS Pro، انقر بزر الفأرة الأيمن على Toolboxes واختر Add Toolbox، ثم حدد ملف <code>CreateFlowArrow.pyt</code>.
+          </p>
+        </div>
+
+        <div class="glass-card p-6 rounded-2xl border-slate-800 text-center space-y-4">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-brand-500/20 text-brand-400 flex items-center justify-center text-2xl font-black font-inter">
+            2
+          </div>
+          <h4 class="text-lg font-bold text-white" data-i18n="step2_title">تحديد المدخلات</h4>
+          <p class="text-xs text-slate-400 leading-relaxed" data-i18n="step2_desc">
+            اختر طبقة خطوط المواسير، وحدد مسار الـ Geodatabase واسم الطبقة وأبعاد السهم المناسبة لمقياس رسم خريطتك.
+          </p>
+        </div>
+
+        <div class="glass-card p-6 rounded-2xl border-slate-800 text-center space-y-4">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-solar-500/20 text-solar-400 flex items-center justify-center text-2xl font-black font-inter">
+            3
+          </div>
+          <h4 class="text-lg font-bold text-white" data-i18n="step3_title">التنفيذ والعرض الفوري</h4>
+          <p class="text-xs text-slate-400 leading-relaxed" data-i18n="step3_desc">
+            اضغط Run أو OK؛ ستتولى الخوارزمية بناء الأسهم وإضافتها فوراً للخريطة النشطة وجدول المحتويات مع تدقيق الجودة.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 9. DOWNLOADS & REPO -->
+  <!-- ========================================================================= -->
+  <section id="downloads" class="py-20 bg-slate-900/40 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-xs uppercase font-extrabold tracking-widest text-ocean-400 mb-2 font-inter" data-i18n="down_tag">DOWNLOADS & REPOSITORY</h2>
+        <h3 class="text-3xl sm:text-4xl font-extrabold text-white" data-i18n="down_heading">تحميل ملفات الأداة والاستنساخ المباشر</h3>
+        <p class="text-slate-400 text-sm sm:text-base mt-4 leading-relaxed" data-i18n="down_subheading">
+          الأداة مفتوحة المصدر بالكامل ومتاحة للتحميل والاستخدام الحر تحت رخصة MIT.
+        </p>
+      </div>
+
+      <!-- Git Clone Bar -->
+      <div class="max-w-3xl mx-auto mb-12 p-4 rounded-2xl bg-slate-950 border border-slate-800 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3 overflow-hidden text-xs sm:text-sm font-mono text-ocean-300">
+          <i class="fa-solid fa-terminal text-slate-500"></i>
+          <span class="truncate">git clone https://github.com/ahmadibrahim4geo/Create-FlowArrow-Tool.git</span>
+        </div>
+        <button id="copyGitCloneBtn" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold font-inter shrink-0 flex items-center gap-2 transition">
+          <i class="fa-regular fa-copy"></i>
+          <span data-i18n="btn_copy">نسخ</span>
+        </button>
+      </div>
+
+      <!-- Download Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        
+        <div class="glass-card p-6 rounded-2xl border-slate-800 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-ocean-500/20 text-ocean-400 flex items-center justify-center text-lg mb-3">
+              <i class="fa-solid fa-toolbox"></i>
+            </div>
+            <h4 class="text-base font-bold text-white">CreateFlowArrow.pyt</h4>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              صندوق الأدوات البرمجي المتكامل (.pyt) الجاهز للعمل مباشرة في ArcMap و ArcGIS Pro دون أي إعدادات وسيطة.
+            </p>
+          </div>
+          <a href="CreateFlowArrow.pyt" download class="w-full py-2.5 rounded-xl bg-ocean-600 hover:bg-ocean-500 text-white font-bold text-xs text-center flex items-center justify-center gap-2 transition shadow-md">
+            <i class="fa-solid fa-download"></i>
+            <span data-i18n="btn_download">تحميل الملف</span>
+          </a>
+        </div>
+
+        <div class="glass-card p-6 rounded-2xl border-slate-800 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center text-lg mb-3">
+              <i class="fa-brands fa-python"></i>
+            </div>
+            <h4 class="text-base font-bold text-white">CreateFlowArrow.py</h4>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              كود السكربت المطور ليعمل تلقائياً مع صناديق الأدوات الكلاسيكية (.tbx) ومشاريع الجيوسينج المستقلة.
+            </p>
+          </div>
+          <a href="CreateFlowArrow.py" download class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs text-center flex items-center justify-center gap-2 transition border border-slate-700">
+            <i class="fa-solid fa-download"></i>
+            <span data-i18n="btn_download">تحميل الكود</span>
+          </a>
+        </div>
+
+        <div class="glass-card p-6 rounded-2xl border-slate-800 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-solar-500/20 text-solar-400 flex items-center justify-center text-lg mb-3">
+              <i class="fa-solid fa-file-lines"></i>
+            </div>
+            <h4 class="text-base font-bold text-white">TOOL_DOCUMENTATION.txt</h4>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              دليل المستخدم الفني والهندسي باللغة العربية يشمل التثبيت والبارامترات وأسرار تدقيق جودة الشبكات.
+            </p>
+          </div>
+          <a href="TOOL_DOCUMENTATION.txt" target="_blank" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs text-center flex items-center justify-center gap-2 transition border border-slate-700">
+            <i class="fa-solid fa-eye"></i>
+            <span data-i18n="btn_view">استعراض الدليل</span>
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 10. AUTHOR & CREDITS FOOTER -->
+  <!-- ========================================================================= -->
+  <footer id="author" class="pt-20 pb-12 bg-slate-950 text-slate-400">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <!-- Author Profile Card -->
+      <div class="glass-card p-8 rounded-3xl border-slate-800 mb-16 relative overflow-hidden">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+          
+          <div class="md:col-span-3 text-center">
+            <div class="relative w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full p-1 bg-gradient-to-tr from-ocean-500 via-brand-500 to-solar-500 shadow-xl shadow-ocean-950/50 mb-3 group">
+              <img src="assets/ahmad_ibrahim.jpg" alt="Ahmad Ibrahim - Lead Developer" class="w-full h-full object-cover object-top rounded-full border-2 border-slate-900 shadow-inner transform transition duration-300 group-hover:scale-105" onerror="this.src='https://ui-avatars.com/api/?name=Ahmad+Ibrahim&background=0284c7&color=fff&size=256'">
+              <span class="absolute bottom-1 right-2 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full animate-pulse" title="Lead Developer Active"></span>
+              <span class="absolute bottom-1 right-2 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+            </div>
+            <h4 class="text-base font-black text-white">أحمد إبراهيم</h4>
+            <p class="text-xs font-semibold text-ocean-400 font-inter">Ahmad Ibrahim</p>
+            <p class="text-[11px] text-slate-400 mt-1" data-i18n="author_role">أخصائي نظم معلومات جغرافية ومطور برمجيات مكانية</p>
+          </div>
+
+          <div class="md:col-span-9 space-y-3">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded bg-ocean-500/20 text-ocean-400 text-xs font-bold" data-i18n="author_badge">المطور ومبرمج الأداة</span>
+              <span class="text-xs text-slate-400 font-inter">@ahmadibrahim4geo</span>
+            </div>
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed" data-i18n="author_bio">
+              أخصائي نظم معلومات جغرافية (GIS) وكارتوجرافي ومطور برمجيات مكانية. متخصص في نمذجة شبكات البنية التحتية والمرافق بالجاذبية الأرضية، والدراسات الهيدرولوجية ودرء أخطار السيول، وتطوير أدوات الأتمتة المتقدمة لبيئات ArcGIS لتمكين المهندسين والباحثين من أعلى مستويات الدقة والإنتاجية.
+            </p>
+
+            <!-- Paid Consultation & WhatsApp Direct Contact -->
+            <div class="mt-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/50 via-slate-900 to-slate-900 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl shrink-0">
+                  <i class="fa-brands fa-whatsapp text-2xl"></i>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-emerald-400" data-i18n="wa_badge">استشارات الدراسات الهيدرولوجية والبنية التحتية</span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-inter">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Available
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-300 mt-1" data-i18n="wa_consult_text">
+                    لطلب الاستشارات الهندسية في المشاريع الهيدرولوجية ودرء أخطار السيول، شبكات تصريف الأمطار، حلول تخفيض المياه الجوفية، وشبكات المرافق والبنية التحتية:
+                  </p>
+                </div>
+              </div>
+              <a href="https://wa.me/201111915925" target="_blank" rel="noopener noreferrer" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs sm:text-sm flex items-center gap-2.5 transition-all shadow-md shadow-emerald-900/40 shrink-0 transform hover:-translate-y-0.5">
+                <i class="fa-brands fa-whatsapp text-xl"></i>
+                <span data-i18n="wa_btn_chat">تواصل عبر واتساب</span>
+              </a>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 pt-2">
+              <a href="https://github.com/ahmadibrahim4geo" target="_blank" rel="noopener noreferrer" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-2 transition">
+                <i class="fa-brands fa-github text-sm"></i>
+                <span>GitHub Profile</span>
+              </a>
+              <a href="mailto:ahmadibrahim.geo@gmail.com" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-2 transition">
+                <i class="fa-solid fa-envelope text-sm"></i>
+                <span data-i18n="btn_contact">البريد الإلكتروني</span>
+              </a>
+              <a href="https://wa.me/201111915925" target="_blank" rel="noopener noreferrer" class="px-3.5 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2 transition">
+                <i class="fa-brands fa-whatsapp text-sm text-emerald-400"></i>
+                <span data-i18n="wa_btn_short">واتساب</span>
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Citations Strip -->
+      <div class="py-6 border-t border-b border-slate-900 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-4 font-inter">
+        <div>
+          <span>Developed with Esri ArcPy • Compatible with ArcGIS Desktop & ArcGIS Pro</span>
+        </div>
+        <div>
+          <span>Open Source under <a href="LICENSE" class="text-ocean-400 hover:underline font-bold">MIT License</a></span>
+        </div>
+      </div>
+
+      <!-- Copyright -->
+      <div class="pt-8 text-center text-xs text-slate-400">
+        <p>© 2026 CreateFlowArrow Tool. All rights reserved.</p>
+        <p class="mt-1 text-[11px] text-slate-400" data-i18n="footer_signature">تطوير أحمد إبراهيم (Ahmad Ibrahim) • صُممت لخدمة مشاريع البنية التحتية ونظم المعلومات الجغرافية</p>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT: BILINGUAL ENGINE & INTERACTION -->
+  <!-- ========================================================================= -->
+  <script>
+    const i18n = {
+      ar: {
+        nav_tagline: "أداة أسهم اتجاه السريان وتدقيق شبكات الانحدار",
+        nav_about: "عن الأداة",
+        nav_concept: "المفهوم الهندسي",
+        nav_math: "الخوارزمية الرياضية",
+        nav_params: "البارامترات",
+        nav_setup: "التثبيت والتشغيل",
+        nav_downloads: "التحميلات",
+        nav_author: "المطور",
+        hero_badge: "توافق مزدوج كامل • يعمل تلقائياً على ArcMap 10.1+ و ArcGIS Pro",
+        hero_title_1: "أداة CreateFlowArrow",
+        hero_title_2: "إنشاء أسهم اتجاه السريان وتدقيق جودة شبكات البنية التحتية",
+        hero_desc: "أداة برمجية متطورة ومستقلة (.pyt) مخصصة لبيئة نظم المعلومات الجغرافية (ArcGIS). تعمل على بناء طبقة مضلعات هندسية تعبر عن اتجاه سريان شبكات المواسير بالجاذبية (صرف صحي، صرف مطري، مياه جوفية)، بالاعتماد الدقيق على اتجاه الرسم وتمركز مركز الثقل في منتصف الماسورة، مع فحص آلي للمناسيب لكشف المواسير المعكوسة فوراً.",
+        hero_btn_download: "تحميل صندوق الأدوات (.pyt)",
+        hero_btn_github: "تصفح المستودع على GitHub",
+        hero_btn_doc: "دليل المستخدم النصي",
+        metric_dual: "توافق تام ArcMap & Pro",
+        metric_pyt: "أداة مستقلة متكاملة",
+        metric_direction: "توجيه دقيق باتجاه الرسم",
+        metric_centroid: "محاذاة مركز ثقل السهم",
+        metric_qa: "كشف السريان العكسي",
+        metric_license: "مفتوح المصدر بالكامل",
+        about_tag: "عن الأداة",
+        about_heading: "ما هي أداة CreateFlowArrow وما القيمة التي تقدمها؟",
+        about_subheading: "صُممت الأداة خصيصاً لحل المشكلات الحرجة التي تواجه مهندسي ومختصي نظم المعلومات الجغرافية في شبكات البنية التحتية بالجاذبية الأرضية؛ حيث تحول فحص الشبكة من ساعات طويلة من التتبع اليدوي إلى مخرجات بصرية وهندسية فورية.",
+        val_card1_title: "محاذاة مركز الثقل في المنتصف بدقة",
+        val_card1_desc: "لا تكتفي الأداة برسم مثلث عشوائي، بل تحسب مركز ثقل المثلث رياضياً (Centroid) وتعيد إزاحته بحيث ينطبق مركز ثقل السهم بدقة متناهية على نقطة منتصف الماسورة تماماً دون أي تشوه بصري.",
+        val_card2_title: "كشف أخطاء الرسم العكسي (QA/QC)",
+        val_card2_desc: "السهم ينطلق دائماً من بداية الخط لنهايته. إذا أشار السهم بعكس انحدار الأرض أو المصب، فهذا إثبات فوري بأن الماسورة رُسمت بالمقلوب ويجب تصحيحها فوراً عبر Flip Line.",
+        val_card3_title: "دقة التوجيه على المنحنيات",
+        val_card3_desc: "حساب زاوية المماس اللحظي عند نقطة المنتصف بدلاً من الاعتماد السطحي على طرفي الخط، مما يضمن اتجاه السهم بسلاسة تامة ومحاذاة طبيعية حتى مع المواسير المنحنية والمتعرجة.",
+        val_card4_title: "نقل كافة البيانات الوصفية",
+        val_card4_desc: "يتم نسخ جميع سمات الماسورة (رقم الماسورة، القطر، المادة، الطول، الميل، المناسيب) إلى طبقة الأسهم الناتجة، مع إضافة معرف الخط الأصلي (ORIG_FID) لسهولة الاستعلام والتسميات.",
+        val_card5_title: "فحص المناسيب الآلي الذكي",
+        val_card5_desc: "إذا احتوت الطبقة على مناسيب القاع (ST_INV_M و END_INV_M)، تفحص الأداة انحدار كل ماسورة تلقائياً وتضع وسماً تحذيرياً REVERSED للمواسير التي تم رسمها بعكس الجاذبية.",
+        val_card6_title: "إضافة تلقائية للخريطة الحالية",
+        val_card6_desc: "تتعرف الأداة تلقائياً على واجهة ArcMap أو ArcGIS Pro وتضيف الطبقة فور انتهاء المعالجة إلى جدول المحتويات والخريطة النشطة دون أي تدخل يدوي من المستخدم.",
+        concept_tag: "المفهوم الهندسي وتدقيق الجودة",
+        concept_heading: "لماذا اتجاه الرسم بالغ الأهمية في شبكات الانحدار؟",
+        concept_subheading: "في شبكات المياه المضغوطة (Pressurized Networks) يمكن للمياه أن تجري في أي اتجاه، ولكن في شبكات الجاذبية هناك مسار إجباري واحد يحكمه انحدار التضاريس.",
+        concept_problem_title: "المشكلة الهندسية الشائعة",
+        concept_problem_desc: "عند استيراد شبكات البنية التحتية من مخططات الأوتوكاد (CAD Drawings) أو الرفع المساحي الميداني، غالباً ما يقوم الرسامون برسم الخطوط بطريقة عشوائية (مثلاً من أسفل لأعلى، أو من اليمين لليسار حسب زاوية الرؤية). هذا يسبب مشاكل جسيمة في:",
+        concept_solution_title: "حل CreateFlowArrow الفوري",
+        concept_solution_desc: "تقوم الأداة بتوليد سهم يعبر بصرياً عن اتجاه الخط الفعلي. بمجرد إلقاء نظرة على الخريطة:",
+        math_tag: "الدقة الهندسية والرياضية",
+        math_heading: "الخوارزمية الرياضية والهندسية لتوليد الأسهم",
+        math_subheading: "صيغ رياضية دقيقة مبنية على حساب المثلثات والمماسات الموضعية وهندسة مراكز الثقل.",
+        params_tag: "البارامترات والواجهة",
+        params_heading: "بارامترات وواجهة المستخدم للأداة",
+        params_subheading: "تم تصميم واجهة الأداة لتكون سهلة وبديهية للغاية مع قيم افتراضية مثالية تناسب غالبية مقاييس الرسم.",
+        th_param: "البارامتر",
+        th_type: "النوع",
+        th_state: "الحالة",
+        th_desc: "الوصف والاستخدام",
+        setup_tag: "طريقة التثبيت والتشغيل",
+        setup_heading: "طريقة التشغيل في 3 خطوات بسيطة",
+        setup_subheading: "لا تتطلب الأداة أي تثبيت معقد؛ فقط أضف صندوق الأدوات CreateFlowArrow.pyt مباشرة لبرنامجك.",
+        step1_title: "إضافة صندوق الأدوات",
+        step1_desc: "من نافذة Catalog في ArcMap أو ArcGIS Pro، انقر بزر الفأرة الأيمن على Toolboxes واختر Add Toolbox، ثم حدد ملف CreateFlowArrow.pyt.",
+        step2_title: "تحديد المدخلات",
+        step2_desc: "اختر طبقة خطوط المواسير، وحدد مسار الـ Geodatabase واسم الطبقة وأبعاد السهم المناسبة لمقياس رسم خريطتك.",
+        step3_title: "التنفيذ والعرض الفوري",
+        step3_desc: "اضغط Run أو OK؛ ستتولى الخوارزمية بناء الأسهم وإضافتها فوراً للخريطة النشطة وجدول المحتويات مع تدقيق الجودة.",
+        down_tag: "التحميلات والمستودع",
+        down_heading: "تحميل ملفات الأداة والاستنساخ المباشر",
+        down_subheading: "الأداة مفتوحة المصدر بالكامل ومتاحة للتحميل والاستخدام الحر تحت رخصة MIT.",
+        btn_copy: "نسخ",
+        btn_download: "تحميل الملف",
+        btn_view: "استعراض الدليل",
+        author_role: "أخصائي نظم معلومات جغرافية ومطور برمجيات مكانية",
+        author_badge: "المطور ومبرمج الأداة",
+        author_bio: "أخصائي نظم معلومات جغرافية (GIS) وكارتوجرافي ومطور برمجيات مكانية. متخصص في نمذجة شبكات البنية التحتية والمرافق بالجاذبية الأرضية، والدراسات الهيدرولوجية ودرء أخطار السيول، وتطوير أدوات الأتمتة المتقدمة لبيئات ArcGIS لتمكين المهندسين والباحثين من أعلى مستويات الدقة والإنتاجية.",
+        btn_contact: "البريد الإلكتروني",
+        wa_badge: "استشارات الدراسات الهيدرولوجية والبنية التحتية",
+        wa_consult_text: "لطلب الاستشارات الهندسية في المشاريع الهيدرولوجية ودرء أخطار السيول، شبكات تصريف الأمطار، حلول تخفيض المياه الجوفية، وشبكات المرافق والبنية التحتية:",
+        wa_btn_chat: "تواصل عبر واتساب",
+        wa_btn_short: "واتساب",
+        footer_signature: "تطوير أحمد إبراهيم (Ahmad Ibrahim) • صُممت لخدمة مشاريع البنية التحتية ونظم المعلومات الجغرافية"
+      },
+      en: {
+        nav_tagline: "Flow Direction Arrows & QA/QC Gravity Networks Tool",
+        nav_about: "About",
+        nav_concept: "Engineering Concept",
+        nav_math: "Math Algorithm",
+        nav_params: "Parameters",
+        nav_setup: "Setup Guide",
+        nav_downloads: "Downloads",
+        nav_author: "Author",
+        hero_badge: "Dual Compatibility • Seamlessly works in ArcMap 10.1+ & ArcGIS Pro",
+        hero_title_1: "CreateFlowArrow Tool",
+        hero_title_2: "Flow Direction Arrows & Infrastructure Network QA/QC Auditing",
+        hero_desc: "An advanced, self-contained ArcGIS Python Toolbox (.pyt) engineered to construct geometric polygon arrows representing flow directions for gravity infrastructure networks (sanitary sewer, storm drainage, groundwater lowering). Built with exact centroid midpoint alignment, curve tangent support, and automated elevation inversion auditing.",
+        hero_btn_download: "Download Toolbox (.pyt)",
+        hero_btn_github: "View on GitHub",
+        hero_btn_doc: "Text Documentation",
+        metric_dual: "ArcMap & Pro Dual Support",
+        metric_pyt: "Self-Contained .pyt Tool",
+        metric_direction: "Start-to-End Precise Direction",
+        metric_centroid: "Midpoint Centroid Offset",
+        metric_qa: "Reverse Flow QA/QC Check",
+        metric_license: "100% Open Source (MIT)",
+        about_tag: "ABOUT THE TOOL",
+        about_heading: "What is CreateFlowArrow and What Value Does it Deliver?",
+        about_subheading: "Specifically engineered to resolve critical GIS gravity network digitization issues, reducing hours of manual error checking into instantaneous visual and analytical outputs.",
+        val_card1_title: "Precision Centroid Midpoint Alignment",
+        val_card1_desc: "Computes the exact mathematical triangle centroid and shifts the geometry so the arrow's center of gravity coincides flawlessly with the pipe's midpoint.",
+        val_card2_title: "QA/QC Reverse Digitization Detection",
+        val_card2_desc: "The arrow strictly follows the digitized path (Start to End). If an arrow points upstream against terrain or outfall, it flags an immediate digitizing error to be flipped.",
+        val_card3_title: "Local Curve Tangent Calculation",
+        val_card3_desc: "Evaluates the local tangent angle around the 50% midpoint rather than a crude straight line from endpoints, guaranteeing smooth alignment on curved pipes.",
+        val_card4_title: "Full Attribute Preservation",
+        val_card4_desc: "Inherits all original pipe attributes (Facility ID, diameter, material, slope, elevations) with an ORIG_FID index for seamless joins, labeling, and queries.",
+        val_card5_title: "Automated Invert QA Inspection",
+        val_card5_desc: "If the input features contain invert elevations (ST_INV_M & END_INV_M), the tool automatically flags pipes with reverse gravity slopes as REVERSED.",
+        val_card6_title: "Automatic Add to Active Map",
+        val_card6_desc: "Dynamically detects whether running in ArcMap or ArcGIS Pro and automatically loads the generated polygon layer into the active Table of Contents.",
+        concept_tag: "ENGINEERING CONCEPT & QA/QC",
+        concept_heading: "Why Digitization Direction is Critical in Gravity Networks?",
+        concept_subheading: "Unlike pressurized water networks where flow can be bi-directional, gravity systems must strictly follow downward topographical slopes.",
+        concept_problem_title: "The Common Engineering Problem",
+        concept_problem_desc: "When importing CAD networks or raw survey polylines, lines are frequently drawn in random directions (e.g. downstream to upstream). This causes severe issues in:",
+        concept_solution_title: "The CreateFlowArrow Immediate Solution",
+        concept_solution_desc: "The tool generates a visual arrow representing the true digitized direction. With a single glance at the map:",
+        math_tag: "MATHEMATICAL PRECISION",
+        math_heading: "Mathematical & Geometric Pipeline",
+        math_subheading: "Rigorous formulations based on trigonometry, local curve tangents, and centroid translation geometry.",
+        params_tag: "TOOL PARAMETERS",
+        params_heading: "Input Parameters & GUI Dialog",
+        params_subheading: "Intuitive interface equipped with optimized default dimensions suited for standard civil and GIS mapping scales.",
+        th_param: "Parameter",
+        th_type: "Data Type",
+        th_state: "State",
+        th_desc: "Description & Usage",
+        setup_tag: "SETUP & WORKFLOW",
+        setup_heading: "Simple 3-Step Setup Guide",
+        setup_subheading: "Zero complicated installations. Simply drop the Python Toolbox (.pyt) directly into your favorite ArcGIS environment.",
+        step1_title: "Add Python Toolbox",
+        step1_desc: "In ArcMap or ArcGIS Pro Catalog window, right-click Toolboxes, choose Add Toolbox, and select `CreateFlowArrow.pyt`.",
+        step2_title: "Configure Inputs",
+        step2_desc: "Select your pipe layer, specify output geodatabase, layer name, and arrow dimensions appropriate for your map scale.",
+        step3_title: "Execute & Inspect",
+        step3_desc: "Click Run or OK. The algorithm generates the arrows, applies QA/QC checks, and immediately renders them on your active map.",
+        down_tag: "DOWNLOADS & REPOSITORY",
+        down_heading: "Download Release Packages & Clone Repo",
+        down_subheading: "Completely open-source under the permissive MIT License for academic and professional applications.",
+        btn_copy: "Copy",
+        btn_download: "Download File",
+        btn_view: "View Guide",
+        author_role: "GIS Specialist & Spatial Software Developer",
+        author_badge: "Lead Developer & GIS Specialist",
+        author_bio: "GIS Specialist, Cartographer, and Spatial Software Developer. Specialized in infrastructure gravity networks, hydrological and flood mitigation modeling, and advanced ArcGIS Python automation tools designed for engineering precision and productivity.",
+        btn_contact: "Email Developer",
+        wa_badge: "Hydrological & Infrastructure Consultations",
+        wa_consult_text: "For professional consultations in flood risk studies & hydrology, stormwater networks, dewatering systems, and municipal infrastructure:",
+        wa_btn_chat: "Contact via WhatsApp",
+        wa_btn_short: "WhatsApp",
+        footer_signature: "Developed by Ahmad Ibrahim • Dedicated to Infrastructure & GIS Engineering"
+      }
+    };
+
+    let currentLang = localStorage.getItem('flowarrow_lang') || 'ar';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('flowarrow_lang', lang);
+
+      const html = document.documentElement;
+      const body = document.body;
+      const langText = document.getElementById('langText');
+
+      if (lang === 'ar') {
+        html.setAttribute('lang', 'ar');
+        html.setAttribute('dir', 'rtl');
+        body.classList.remove('lang-en');
+        langText.textContent = 'English';
+      } else {
+        html.setAttribute('lang', 'en');
+        html.setAttribute('dir', 'ltr');
+        body.classList.add('lang-en');
+        langText.textContent = 'العربية';
+      }
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[lang] && i18n[lang][key]) {
+          el.innerHTML = i18n[lang][key];
+        }
+      });
+    }
+
+    document.getElementById('langToggleBtn').addEventListener('click', () => {
+      setLanguage(currentLang === 'ar' ? 'en' : 'ar');
+    });
+
+    const copyBtn = document.getElementById('copyGitCloneBtn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        const cmd = 'git clone https://github.com/ahmadibrahim4geo/Create-FlowArrow-Tool.git';
+        navigator.clipboard.writeText(cmd).then(() => {
+          const originalText = copyBtn.innerHTML;
+          copyBtn.innerHTML = `<i class="fa-solid fa-check text-brand-400"></i> <span>${currentLang === 'ar' ? 'تم النسخ!' : 'Copied!'}</span>`;
+          setTimeout(() => {
+            copyBtn.innerHTML = originalText;
+          }, 2000);
+        });
+      });
+    }
+
+    const mobileBtn = document.getElementById('mobileMenuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    if (mobileBtn && mobileMenu) {
+      mobileBtn.addEventListener('click', () => {
+        mobileMenu.classList.toggle('hidden');
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setLanguage(currentLang);
+    });
+  </script>
+
+</body>
+</html>

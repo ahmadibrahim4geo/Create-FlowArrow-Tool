@@ -5,7 +5,9 @@ CreateFlowArrow.py
 أداة إنشاء أسهم اتجاه السريان لشبكات البنية التحتية (صرف صحي، صرف أمطار، تخفيض مياه جوفية)
 متوافقة تماماً للعمل على كل من ArcMap (Python 2.7) و ArcGIS Pro (Python 3.x).
 
-Author: Ahmad / GIS Infrastructure Solutions
+Author: أحمد إبراهيم (Ahmad Ibrahim)
+Email: ahmadibrahim.geo@gmail.com
+Repository: https://github.com/ahmadibrahim4geo/Create-FlowArrow-Tool.git
 License: MIT
 """
 
