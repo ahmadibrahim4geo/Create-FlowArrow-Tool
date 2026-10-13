@@ -90,7 +90,7 @@ flowchart TD
 
 ### 2. في برنامج ArcMap:
 1. افتح خريطتك في **ArcMap**.
-2. من نافذة **Catalog**، استعرض مجلد المشروع وانقر مباشرة على `CreateFlowArrow.pyt` (أو `CreateFlowArrow.tbx`).
+2. من نافذة **Catalog**، استعرض مجلد المشروع وانقر مباشرة على `CreateFlowArrow.pyt`.
 3. املأ البيانات واضغط **OK**.
 4. ستظهر طبقة الأسهم مباشرة على الخريطة.
 
@@ -117,9 +117,8 @@ Create FlowArrow Tool/
 ├── assets/                      # مجلد الصور وملفات الوسائط (Before/After)
 │   ├── before.png               # صورة المعاينة قبل تشغيل الأداة
 │   └── after.png                # صورة المعاينة بعد توليد الأسهم
-├── CreateFlowArrow.pyt          # صندوق الأدوات البرمجي المتكامل بالإنجليزية (Python Toolbox)
-├── CreateFlowArrow.py           # كود السكربت البرمجي المحدث لـ ArcMap و Pro
-├── CreateFlowArrow.tbx          # صندوق أدوات ArcMap الكلاسيكي
+├── CreateFlowArrow.pyt          # صندوق الأدوات الموحد لـ ArcMap و ArcGIS Pro (Python Toolbox)
+├── CreateFlowArrow.py           # كود السكربت البرمجي المستقل للمطورين وبيئات الأتمتة
 ├── index.html                   # صفحة الويب التفاعلية لعرض الأداة وتوثيقها
 ├── TOOL_DOCUMENTATION.txt       # دليل المستخدم والشرح الفني المفصل بالعربية
 ├── README.md                    # واجهة المشروع والشرح الكامل على GitHub
