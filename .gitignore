@@ -1,0 +1,44 @@
+# ==============================================================================
+# ArcGIS & Python .gitignore for CreateFlowArrow Project
+# ==============================================================================
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# ArcGIS lock files and temporary logs
+*.lock
+*.LOCK
+*.tmp
+*.TMP
+*.log
+*.LOG
+GpMessages/
+ImportLog/
+Project_index/
+.backups/
+*/GpMessages/
+*/ImportLog/
+*/Project_index/
+*/.backups/
+
+# ArcGIS XML metadata and schema locks
+*.mxd.xml
+*.sde
+*.gdb.zip
+
+# Compression archives (optional, un-comment if you don't want RARs in git)
+# *.rar
+# *.zip
+
+# OS Generated Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
