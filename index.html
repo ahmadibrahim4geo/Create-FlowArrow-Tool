@@ -240,45 +240,111 @@
             <div class="relative rounded-3xl p-6 bg-slate-900/90 border-2 border-ocean-500/40 shadow-2xl overflow-hidden backdrop-blur-xl space-y-6">
               
               <!-- Mini Pipeline Demo Visualizer -->
-              <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 relative overflow-hidden">
-                <div class="flex items-center justify-between text-xs text-slate-400 mb-4 font-mono">
-                  <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-ocean-400"></span> Start Node (Upstream)</span>
-                  <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> End Node (Downstream)</span>
+              <div class="p-4 sm:p-5 rounded-2xl bg-slate-950 border border-slate-800 relative overflow-hidden" dir="ltr">
+                <div class="flex items-center justify-between text-xs text-slate-300 mb-3 font-mono">
+                  <span class="flex items-center gap-1.5 font-bold text-ocean-400">
+                    <span class="w-2.5 h-2.5 rounded-full bg-ocean-400 animate-pulse"></span>
+                    Start Node (Upstream)
+                  </span>
+                  <span class="flex items-center gap-1.5 font-bold text-emerald-400">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    End Node (Downstream)
+                  </span>
                 </div>
 
                 <!-- SVG Pipeline and Centered Flow Arrow -->
-                <svg viewBox="0 0 400 120" class="w-full h-auto">
+                <svg viewBox="0 0 400 130" class="w-full h-auto">
                   <defs>
-                    <linearGradient id="pipeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <!-- Pipe Shading Gradient -->
+                    <linearGradient id="pipeBodyGrad" x1="0" y1="50" x2="0" y2="70" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stop-color="#334155" />
+                      <stop offset="40%" stop-color="#1e293b" />
+                      <stop offset="100%" stop-color="#0f172a" />
+                    </linearGradient>
+
+                    <!-- Water Stream Gradient -->
+                    <linearGradient id="waterFlowGrad" x1="35" y1="60" x2="365" y2="60" gradientUnits="userSpaceOnUse">
                       <stop offset="0%" stop-color="#0284c7" />
                       <stop offset="100%" stop-color="#10b981" />
                     </linearGradient>
-                    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stop-color="#38bdf8" />
-                      <stop offset="100%" stop-color="#34d399" />
+
+                    <!-- Flow Arrow Gradient -->
+                    <linearGradient id="arrowGrad" x1="185" y1="60" x2="230" y2="60" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stop-color="#06b6d4" />
+                      <stop offset="100%" stop-color="#10b981" />
                     </linearGradient>
+
+                    <!-- Glow Drop Shadow for Arrow -->
+                    <filter id="arrowShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#06b6d4" flood-opacity="0.6"/>
+                    </filter>
                   </defs>
 
-                  <!-- Pipe Line -->
-                  <line x1="30" y1="60" x2="370" y2="60" stroke="url(#pipeGrad)" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 4" opacity="0.4" />
-                  <line x1="30" y1="60" x2="370" y2="60" stroke="url(#pipeGrad)" stroke-width="4" stroke-linecap="round" />
+                  <!-- ============================================== -->
+                  <!-- LAYER 1: THE PIPE (الماسورة - في الخلفية) -->
+                  <!-- ============================================== -->
+                  <!-- Outer Pipe Conduit Body -->
+                  <rect x="35" y="52" width="330" height="16" rx="8" fill="url(#pipeBodyGrad)" stroke="#475569" stroke-width="2" />
+                  
+                  <!-- Inner Pressurized / Gravity Water Stream -->
+                  <line x1="35" y1="60" x2="365" y2="60" stroke="url(#waterFlowGrad)" stroke-width="8" stroke-linecap="round" />
+                  
+                  <!-- Flow Motion Dash Line -->
+                  <line x1="45" y1="60" x2="355" y2="60" stroke="#ffffff" stroke-width="2" stroke-dasharray="10 8" stroke-linecap="round" opacity="0.75" />
 
-                  <!-- Start Node -->
-                  <circle cx="30" cy="60" r="10" fill="#0369a1" stroke="#38bdf8" stroke-width="3" />
-                  <text x="30" y="90" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="monospace">MH-01 (Invert: 10.5m)</text>
+                  <!-- Pipe Joints / Collars -->
+                  <rect x="90" y="50" width="4" height="20" rx="2" fill="#64748b" opacity="0.8" />
+                  <rect x="140" y="50" width="4" height="20" rx="2" fill="#64748b" opacity="0.8" />
+                  <rect x="260" y="50" width="4" height="20" rx="2" fill="#64748b" opacity="0.8" />
+                  <rect x="310" y="50" width="4" height="20" rx="2" fill="#64748b" opacity="0.8" />
 
-                  <!-- End Node -->
-                  <circle cx="370" cy="60" r="10" fill="#047857" stroke="#34d399" stroke-width="3" />
-                  <text x="370" y="90" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="monospace">MH-02 (Invert: 9.8m)</text>
+                  <!-- ============================================== -->
+                  <!-- LAYER 2: THE FLOW ARROW (السهم - فوق الماسورة) -->
+                  <!-- ============================================== -->
+                  <!-- Centroid is exactly at x=200, y=60: Base at x=185 (y=42 to y=78), Tip at x=230, y=60 -->
+                  <polygon points="185,42 185,78 230,60" fill="url(#arrowGrad)" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" filter="url(#arrowShadow)" />
 
-                  <!-- Perfectly Centered Polygon Arrow -->
-                  <!-- Centroid is exactly at x=200, y=60 -->
-                  <polygon points="185,46 185,74 230,60" fill="url(#arrowGrad)" stroke="#ffffff" stroke-width="2" class="filter drop-shadow-md" />
+                  <!-- Midpoint Marker (Orange Dot) -->
+                  <circle cx="200" cy="60" r="3.5" fill="#f59e0b" stroke="#ffffff" stroke-width="1" />
+                  
+                  <!-- Dashed Guide Line to Centroid -->
+                  <line x1="200" y1="22" x2="200" y2="55" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3 3" />
+                  <text x="200" y="16" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="bold" font-family="'Inter', sans-serif">Midpoint Centroid</text>
 
-                  <!-- Midpoint Marker -->
-                  <circle cx="200" cy="60" r="3" fill="#f59e0b" />
-                  <line x1="200" y1="20" x2="200" y2="55" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="2 2" />
-                  <text x="200" y="15" text-anchor="middle" fill="#fbbf24" font-size="10" font-weight="bold">Midpoint Centroid</text>
+                  <!-- ============================================== -->
+                  <!-- LAYER 3: THE NODES / MANHOLES (النقطتان في الأعلى) -->
+                  <!-- ============================================== -->
+                  <!-- Start Node (MH-01) - Blue Manhole Overlapping Pipe End -->
+                  <g>
+                    <!-- Outer Cast Iron Frame -->
+                    <circle cx="35" cy="60" r="16" fill="#0f172a" stroke="#0284c7" stroke-width="3.5" />
+                    <!-- Inner Manhole Cover -->
+                    <circle cx="35" cy="60" r="10" fill="#0284c7" stroke="#38bdf8" stroke-width="2" />
+                    <!-- Center Rivet / Hole -->
+                    <circle cx="35" cy="60" r="3.5" fill="#ffffff" opacity="0.9" />
+                  </g>
+
+                  <!-- End Node (MH-02) - Green Manhole Overlapping Pipe End -->
+                  <g>
+                    <!-- Outer Cast Iron Frame -->
+                    <circle cx="365" cy="60" r="16" fill="#0f172a" stroke="#059669" stroke-width="3.5" />
+                    <!-- Inner Manhole Cover -->
+                    <circle cx="365" cy="60" r="10" fill="#10b981" stroke="#34d399" stroke-width="2" />
+                    <!-- Center Rivet / Hole -->
+                    <circle cx="365" cy="60" r="3.5" fill="#ffffff" opacity="0.9" />
+                  </g>
+
+                  <!-- Labels Under Nodes & Pipe -->
+                  <!-- Left: Start Node Invert -->
+                  <text x="35" y="95" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="bold" font-family="'Inter', monospace">MH-01</text>
+                  <text x="35" y="110" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="monospace">IL: 10.50m</text>
+
+                  <!-- Center: Pipe Specification -->
+                  <text x="200" y="110" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">Ø400mm UPVC • S = 0.021 (2.1%) ➔</text>
+
+                  <!-- Right: End Node Invert -->
+                  <text x="365" y="95" text-anchor="middle" fill="#34d399" font-size="11" font-weight="bold" font-family="'Inter', monospace">MH-02</text>
+                  <text x="365" y="110" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="monospace">IL: 9.80m</text>
                 </svg>
               </div>
 
