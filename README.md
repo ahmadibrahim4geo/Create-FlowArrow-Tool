@@ -31,6 +31,14 @@
 
 ---
 
+## 📸 المعاينة الميدانية (Visual Demonstration - Before & After)
+
+| قبل تشغيل الأداة (شبكة بدون أسهم اتجاهات) | بعد تشغيل الأداة (توليد أسهم السريان بدقة في المنتصف) |
+| :---: | :---: |
+| ![Before](Befor.png) | ![After](After.png) |
+
+---
+
 ## 🚀 المميزات الرئيسية (Key Features)
 
 - 🔄 **توافق مزدوج كامل (Dual-Platform Compatibility):**
