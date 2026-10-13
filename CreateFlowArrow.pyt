@@ -30,8 +30,8 @@ class CreateFlowArrow(object):
         """تعريف أداة إنشاء أسهم السريان"""
         self.label = "إنشاء أسهم اتجاه السريان (Create Flow Arrows)"
         self.description = (
-            "أداة هندسية تقوم بإنشاء طبقة مضلعات (Polygon Arrows) تعبر عن اتجاه "
-            "السريان لشبكات المواسير والأنابيب (صرف صحي، أمطار، ري، مياه جوفية) "
+            "أداة هندسية تقوم ببناء طبقة أسهم اتجاه تعبر عن سريان "
+            "شبكات المواسير والأنابيب (صرف صحي، أمطار، ري، مياه جوفية) "
             "بناءً على اتجاه الرسم وتدقيق المناسيب الهندسية."
         )
         self.canRunInBackground = False
@@ -157,7 +157,7 @@ class CreateFlowArrow(object):
             geometry_type="POLYGON",
             spatial_reference=spatial_ref
         )
-        arcpy.AddMessage(u"تم إنشاء طبقة المضلعات الناتجة: {}".format(output_layer_name))
+        arcpy.AddMessage(u"تم إنشاء طبقة أسهم الاتجاه الناتجة: {}".format(output_layer_name))
 
         # إضافة حقول التدقيق
         arcpy.AddField_management(output_layer, "ORIG_FID", "LONG", field_alias=u"Original Pipe FID")

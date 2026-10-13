@@ -130,7 +130,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                                         out_name=output_layer_name,
                                         geometry_type="POLYGON",
                                         spatial_reference=spatial_ref)
-    log_msg(u"تم إنشاء طبقة المضلعات الناتجة: {}".format(output_layer_name))
+    log_msg(u"تم إنشاء طبقة أسهم الاتجاه الناتجة: {}".format(output_layer_name))
 
     # إضافة حقل المعرف الأصلي للربط (ORIG_FID)
     arcpy.AddField_management(output_layer, "ORIG_FID", "LONG",
