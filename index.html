@@ -746,7 +746,28 @@
                 <td class="p-4 font-bold text-white">Transfer Attributes</td>
                 <td class="p-4 font-mono text-xs">Boolean</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-xs">اختياري</span></td>
-                <td class="p-4">نسخ جميع حقول وسمات الماسورة الأصلية لطبقة الأسهم لتمكين التسمية والاستعلام.</td>
+                <td class="p-4">نسخ جميع حقول وسمات الماسورة الأصلية لطبقة الأسهم لتمكين التسمية والاستعلام (افتراضي: <code>True</code>).</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-solar-400">7</td>
+                <td class="p-4 font-bold text-white">Optional Node Points Layer</td>
+                <td class="p-4 font-mono text-xs">Feature Layer (Point)</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs">اختياري ذكي</span></td>
+                <td class="p-4">طبقة نقاط المطابق أو غرف التفتيش التي تمثل بدايات ونهايات المواسير وتحتوي على المناسيب.</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-solar-400">8</td>
+                <td class="p-4 font-bold text-white">Node Invert Elevation Field</td>
+                <td class="p-4 font-mono text-xs">Field (Numeric)</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs">اختياري ذكي</span></td>
+                <td class="p-4">حقل منسوب القاع (Invert) بطبقة النقاط؛ يتدفق السائل من المنسوب الأعلى للأقل لكشف المواسير المعكوسة.</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-solar-400">9</td>
+                <td class="p-4 font-bold text-white">Auto-Flip Reversed Pipe Lines</td>
+                <td class="p-4 font-mono text-xs">Boolean</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs">اختياري ذكي</span></td>
+                <td class="p-4">تعديل هندسة وعكس اتجاه رسم المواسير المعكوسة مباشرة داخل الطبقة الأصلية لتطابق الجاذبية.</td>
               </tr>
             </tbody>
           </table>
@@ -834,7 +855,7 @@
       </div>
 
       <!-- Download Cards Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
         
         <div class="glass-card p-6 rounded-2xl border-slate-800 flex flex-col justify-between space-y-4">
           <div>
@@ -859,7 +880,7 @@
             </div>
             <h4 class="text-base font-bold text-white">CreateFlowArrow.py</h4>
             <p class="text-xs text-slate-400 mt-1 leading-relaxed">
-              كود السكربت المطور ليعمل تلقائياً مع صناديق الأدوات الكلاسيكية (.tbx) ومشاريع الجيوسينج المستقلة.
+              كود السكربت المطور للمطورين وبيئات الأتمتة الجغرافية المستقلة (Standalone Geoprocessing).
             </p>
           </div>
           <a href="CreateFlowArrow.py" download class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs text-center flex items-center justify-center gap-2 transition border border-slate-700">
@@ -881,6 +902,22 @@
           <a href="TOOL_DOCUMENTATION.txt" target="_blank" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs text-center flex items-center justify-center gap-2 transition border border-slate-700">
             <i class="fa-solid fa-eye"></i>
             <span data-i18n="btn_view">استعراض الدليل</span>
+          </a>
+        </div>
+
+        <div class="glass-card p-6 rounded-2xl border-slate-800 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg mb-3">
+              <i class="fa-solid fa-database"></i>
+            </div>
+            <h4 class="text-base font-bold text-white">Sample Data (data/)</h4>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+              بيانات تدريبية واقعية جاهزة (مواسير ونقاط مطابق) مهيأة لاختبار وتدريب المستخدم على كشف وتصحيح المواسير المعكوسة.
+            </p>
+          </div>
+          <a href="https://github.com/ahmadibrahim4geo/Create-FlowArrow-Tool/tree/main/data" target="_blank" rel="noopener noreferrer" class="w-full py-2.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white font-bold text-xs text-center flex items-center justify-center gap-2 transition shadow-md">
+            <i class="fa-solid fa-folder-open"></i>
+            <span>بيانات التدريب</span>
           </a>
         </div>
 
@@ -1020,8 +1057,8 @@
         val_card3_desc: "حساب زاوية المماس اللحظي عند نقطة المنتصف بدلاً من الاعتماد السطحي على طرفي الخط، مما يضمن اتجاه السهم بسلاسة تامة ومحاذاة طبيعية حتى مع المواسير المنحنية والمتعرجة.",
         val_card4_title: "نقل كافة البيانات الوصفية",
         val_card4_desc: "يتم نسخ جميع سمات الماسورة (رقم الماسورة، القطر، المادة، الطول، الميل، المناسيب) إلى طبقة الأسهم الناتجة، مع إضافة معرف الخط الأصلي (ORIG_FID) لسهولة الاستعلام والتسميات.",
-        val_card5_title: "فحص المناسيب الآلي الذكي",
-        val_card5_desc: "إذا احتوت الطبقة على مناسيب القاع (ST_INV_M و END_INV_M)، تفحص الأداة انحدار كل ماسورة تلقائياً وتضع وسماً تحذيرياً REVERSED للمواسير التي تم رسمها بعكس الجاذبية.",
+        val_card5_title: "فحص المناسيب الذكي والربط بالنقاط والتصحيح الآلي",
+        val_card5_desc: "تدعم الأداة طبقة نقاط المطابق والمناسيب (Inverts) لتحديد مسار الجاذبية الحقيقي من المنسوب الأعلى للأقل، مع توجيه الأسهم نحو الانحدار وإمكانية عكس وتصحيح رسم المواسير المعكوسة تلقائياً (Auto-Flip).",
         val_card6_title: "إضافة تلقائية للخريطة الحالية",
         val_card6_desc: "تتعرف الأداة تلقائياً على واجهة ArcMap أو ArcGIS Pro وتضيف الطبقة فور انتهاء المعالجة إلى جدول المحتويات والخريطة النشطة دون أي تدخل يدوي من المستخدم.",
         concept_tag: "المفهوم الهندسي وتدقيق الجودة",
@@ -1099,8 +1136,8 @@
         val_card3_desc: "Evaluates the local tangent angle around the 50% midpoint rather than a crude straight line from endpoints, guaranteeing smooth alignment on curved pipes.",
         val_card4_title: "Full Attribute Preservation",
         val_card4_desc: "Inherits all original pipe attributes (Facility ID, diameter, material, slope, elevations) with an ORIG_FID index for seamless joins, labeling, and queries.",
-        val_card5_title: "Automated Invert QA Inspection",
-        val_card5_desc: "If the input features contain invert elevations (ST_INV_M & END_INV_M), the tool automatically flags pipes with reverse gravity slopes as REVERSED.",
+        val_card5_title: "Smart Node Invert Alignment & Auto-Flip",
+        val_card5_desc: "Leverages optional manhole point inverts (Z_higher to Z_lower) to detect actual gravity flow, orienting downhill arrows and optionally auto-flipping reversed pipes in-place.",
         val_card6_title: "Automatic Add to Active Map",
         val_card6_desc: "Dynamically detects whether running in ArcMap or ArcGIS Pro and automatically loads the generated polygon layer into the active Table of Contents.",
         concept_tag: "ENGINEERING CONCEPT & QA/QC",
