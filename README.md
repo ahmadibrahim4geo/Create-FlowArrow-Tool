@@ -35,7 +35,7 @@
 
 | قبل تشغيل الأداة (شبكة بدون أسهم اتجاهات) | بعد تشغيل الأداة (توليد أسهم السريان بدقة في المنتصف) |
 | :---: | :---: |
-| ![Before](Befor.png) | ![After](After.png) |
+| ![Before](assets/before.png) | ![After](assets/after.png) |
 
 ---
 
@@ -44,9 +44,11 @@
 - 🔄 **توافق مزدوج كامل (Dual-Platform Compatibility):**
   تعمل بسلاسة مطلقة وبنفس الكفاءة على **ArcMap (Python 2.7)** و **ArcGIS Pro (Python 3.x)** مع الكشف التلقائي عن البيئة.
 - 📦 **صندوق أدوات برمجي متكامل (Self-Contained Python Toolbox - `.pyt`):**
-  ملف واحد متكامل يضم الواجهة والتحقق والكود البرمجي دون الحاجة لربط ملفات خارجية أو القلق من انكسار المسارات.
+  أداة مدمجة وموحدة بواجهة إنجليزية بالكامل (`Create Flow Direction Arrows`) دون الحاجة لربط ملفات خارجية.
 - 📐 **محاذاة مركز الثقل الدقيقة (Centroid Midpoint Alignment):**
   تحسب الأداة مركز ثقل مثلث السهم وتضبط إزاحته بحيث يتطابق مركز ثقل السهم بدقة متناهية مع منتصف الماسورة تماماً.
+- 🔀 **خيارات هندسية متعددة للمخرج (Polygon / Polyline):**
+  إمكانية اختيار نوع هندسة الأسهم الناتجة: مضلع مغلق (`Polygon`) أو سهم خطي مفتوح (`Polyline`) حسب متطلبات الإخراج الكارتوجرافي.
 - 🔄 **دعم المنحنيات (Curve Tangent Calculation):**
   حساب زاوية المماس اللحظي عند منتصف الماسورة، لضمان اتجاه السهم بشكل صحيح حتى مع المواسير المنحنية.
 - 📋 **نقل البيانات الوصفية (Attribute Preservation):**
@@ -64,10 +66,10 @@
 flowchart TD
     A["خطوط المواسير المدخلة (Input Pipes)"] --> B["استخراج نقطة البداية ونقطة النهاية"]
     B --> C["حساب نقطة المنتصف وزاوية المماس (Midpoint & Angle)"]
-    C --> D["توليد رؤوس مثلث السهم (Base & Tip)"]
+    C --> D["توليد رؤوس السهم (Base & Tip)"]
     D --> E["ضبط مركز ثقل السهم على منتصف الماسورة"]
     E --> F["فحص اتجاه الانحدار ونقل البيانات الوصفية"]
-    F --> G["إنشاء مضلع السهم في Geodatabase"]
+    F --> G["توليد الشكل الهندسي المطلوب (Polygon / Polyline)"]
     G --> H["إضافة الطبقة الناتجة تلقائياً إلى الخريطة النشطة"]
 ```
 
@@ -83,7 +85,7 @@ flowchart TD
 2. افتح مشروعك في **ArcGIS Pro**.
 3. في لوحة **Catalog**، انقر بزر الفأرة الأيمن على **Toolboxes** واختر **Add Toolbox**.
 4. اختر ملف `CreateFlowArrow.pyt`.
-5. افتح الأداة **Create Flow Arrows (إنشاء أسهم اتجاه السريان)**.
+5. افتح الأداة **Create Flow Direction Arrows**.
 6. حدد المدخلات واضغط **Run**.
 
 ### 2. في برنامج ArcMap:
@@ -96,14 +98,15 @@ flowchart TD
 
 ## ⚙️ بارامترات الأداة (Parameters)
 
-| # | المعامل | النوع | الحالة | الوصف |
+| # | المعامل (Parameter) | النوع (Type) | الحالة | الوصف |
 |---|---|---|---|---|
-| 1 | **Input Pipes Layer** | Feature Layer | إجباري | طبقة خطوط المواسير (Polyline). |
-| 2 | **Output Geodatabase** | Workspace / GDB | إجباري | قاعدة البيانات الجغرافية التي سيتم حفظ الطبقة بها. |
-| 3 | **Output Layer Name** | String | إجباري | اسم طبقة أسهم الاتجاه الناتجة (مثال: `PIPES_FLOW_ARROWS`). |
-| 4 | **Arrow Base Width** | Double | إجباري | عرض قاعدة السهم بالمتر (افتراضي: `2.0` م). |
-| 5 | **Arrow Height/Length** | Double | إجباري | طول / ارتفاع السهم بالمتر (افتراضي: `5.0` م). |
-| 6 | **Transfer Attributes** | Boolean | اختياري | خيار نقل سمات وبيانات المواسير إلى طبقة الأسهم. |
+| 0 | **Input Pipe Lines** | Feature Layer (Polyline) | إجباري | طبقة خطوط شبكة المواسير المفتوحة بالخريطة. |
+| 1 | **Output Geodatabase or Workspace** | Workspace / GDB | إجباري | مسار قاعدة البيانات الجغرافية (.gdb) لحفظ الطبقة. |
+| 2 | **Output Layer Name** | String | إجباري | اسم طبقة أسهم الاتجاه الناتجة (افتراضي: `Flow_Direction_Arrows`). |
+| 3 | **Output Geometry Type** | String (Choice) | إجباري | نوع هندسة السهم: مضلع مغلق (`Polygon`) أو سهم خطي مفتوح (`Polyline`). |
+| 4 | **Arrow Base Width (Meters)** | Double | إجباري | عرض قاعدة مثلث السهم بالمتر (افتراضي: `2.0` م). |
+| 5 | **Arrow Height / Length (Meters)** | Double | إجباري | ارتفاع / طول السهم بالمتر (افتراضي: `5.0` م). |
+| 6 | **Transfer Pipe Attributes** | Boolean | اختياري | نقل سمات وبيانات المواسير الأصلية إلى طبقة الأسهم (افتراضي: `True`). |
 
 ---
 
@@ -111,9 +114,13 @@ flowchart TD
 
 ```text
 Create FlowArrow Tool/
-├── CreateFlowArrow.pyt          # صندوق الأدوات البرمجي المتكامل (Python Toolbox - الأساسي)
+├── assets/                      # مجلد الصور وملفات الوسائط (Before/After)
+│   ├── before.png               # صورة المعاينة قبل تشغيل الأداة
+│   └── after.png                # صورة المعاينة بعد توليد الأسهم
+├── CreateFlowArrow.pyt          # صندوق الأدوات البرمجي المتكامل بالإنجليزية (Python Toolbox)
 ├── CreateFlowArrow.py           # كود السكربت البرمجي المحدث لـ ArcMap و Pro
 ├── CreateFlowArrow.tbx          # صندوق أدوات ArcMap الكلاسيكي
+├── index.html                   # صفحة الويب التفاعلية لعرض الأداة وتوثيقها
 ├── TOOL_DOCUMENTATION.txt       # دليل المستخدم والشرح الفني المفصل بالعربية
 ├── README.md                    # واجهة المشروع والشرح الكامل على GitHub
 ├── LICENSE                      # رخصة الاستخدام مفتوحة المصدر (MIT License)

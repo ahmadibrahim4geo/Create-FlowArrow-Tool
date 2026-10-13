@@ -2,10 +2,10 @@
 """
 CreateFlowArrow.pyt
 -------------------
-Python Toolbox متكامل لإنشاء أسهم اتجاه السريان لشبكات البنية التحتية (صرف صحي، صرف مطري، مياه جوفية).
-يعمل مباشرة في ArcMap (10.1 وما بعده) و ArcGIS Pro دون الحاجة لربط ملفات خارجية أو ضبط مسارات وسيطة.
+Unified ArcGIS Python Toolbox for generating flow direction arrows on gravity infrastructure networks.
+Fully compatible with ArcGIS Pro (Python 3.x) and ArcMap 10.1+ (Python 2.7).
 
-Author: أحمد إبراهيم (Ahmad Ibrahim)
+Author: Ahmad Ibrahim
 Email: ahmadibrahim.geo@gmail.com
 Repository: https://github.com/ahmadibrahim4geo/Create-FlowArrow-Tool.git
 License: MIT
@@ -19,29 +19,29 @@ import os
 
 class Toolbox(object):
     def __init__(self):
-        """تعريف صندوق الأدوات (Toolbox)"""
-        self.label = "Create Flow Arrow Toolbox"
+        """Define the toolbox."""
+        self.label = "Flow Direction Arrow Toolbox"
         self.alias = "FlowArrowToolbox"
         self.tools = [CreateFlowArrow]
 
 
 class CreateFlowArrow(object):
     def __init__(self):
-        """تعريف أداة إنشاء أسهم السريان"""
-        self.label = "إنشاء أسهم اتجاه السريان (Create Flow Arrows)"
+        """Define the tool."""
+        self.label = "Create Flow Direction Arrows"
         self.description = (
-            "أداة هندسية تقوم ببناء طبقة أسهم اتجاه تعبر عن سريان "
-            "شبكات المواسير والأنابيب (صرف صحي، أمطار، ري، مياه جوفية) "
-            "بناءً على اتجاه الرسم وتدقيق المناسيب الهندسية."
+            "Generates flow direction arrow features (Polygon or Polyline) aligned with "
+            "pipe digitization direction (Start Node to End Node) for gravity networks "
+            "(stormwater, sewer, groundwater lowering), with automated elevation QA/QC auditing."
         )
         self.canRunInBackground = False
 
     def getParameterInfo(self):
-        """تحديد بارامترات وواجهة المستخدم للأداة"""
+        """Define parameter definitions."""
 
-        # 0. طبقة خطوط المواسير المدخلة
+        # 0. Input Pipes Layer
         param0 = arcpy.Parameter(
-            displayName="طبقة خطوط المواسير (Input Pipes Layer)",
+            displayName="Input Pipe Lines",
             name="input_layer",
             datatype="GPFeatureLayer",
             parameterType="Required",
@@ -49,125 +49,148 @@ class CreateFlowArrow(object):
         )
         param0.filter.list = ["Polyline"]
 
-        # 1. مكان الحفظ (Geodatabase أو Folder)
+        # 1. Output Workspace / Geodatabase
         param1 = arcpy.Parameter(
-            displayName="قاعدة البيانات الجغرافية للحفظ (Output Geodatabase)",
+            displayName="Output Geodatabase or Workspace",
             name="output_workspace",
             datatype="DEWorkspace",
             parameterType="Required",
             direction="Input"
         )
 
-        # 2. اسم الطبقة الناتجة
+        # 2. Output Layer Name
         param2 = arcpy.Parameter(
-            displayName="اسم الطبقة الناتجة (Output Layer Name)",
+            displayName="Output Layer Name",
             name="output_layer_name",
             datatype="GPString",
             parameterType="Required",
             direction="Input"
         )
-        param2.value = "PIPES_FLOW_ARROWS"
+        param2.value = "Flow_Direction_Arrows"
 
-        # 3. عرض قاعدة السهم بالمتر
+        # 3. Output Geometry Type (Polygon or Polyline)
         param3 = arcpy.Parameter(
-            displayName="عرض قاعدة السهم بالمتر (Arrow Base Width)",
+            displayName="Output Geometry Type",
+            name="geometry_type",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input"
+        )
+        param3.filter.list = ["Polygon", "Polyline"]
+        param3.value = "Polygon"
+
+        # 4. Arrow Base Width
+        param4 = arcpy.Parameter(
+            displayName="Arrow Base Width (Meters)",
             name="triangle_base",
             datatype="GPDouble",
             parameterType="Required",
             direction="Input"
         )
-        param3.value = 2.0
+        param4.value = 2.0
 
-        # 4. ارتفاع / طول السهم بالمتر
-        param4 = arcpy.Parameter(
-            displayName="طول/ارتفاع السهم بالمتر (Arrow Height/Length)",
+        # 5. Arrow Height / Length
+        param5 = arcpy.Parameter(
+            displayName="Arrow Height / Length (Meters)",
             name="triangle_height",
             datatype="GPDouble",
             parameterType="Required",
             direction="Input"
         )
-        param4.value = 5.0
+        param5.value = 5.0
 
-        # 5. خيار نقل البيانات الوصفية من المواسير
-        param5 = arcpy.Parameter(
-            displayName="نقل بيانات الماسورة إلى السهم (Transfer Pipe Attributes)",
+        # 6. Transfer Attributes
+        param6 = arcpy.Parameter(
+            displayName="Transfer Pipe Attributes",
             name="transfer_attributes",
             datatype="GPBoolean",
             parameterType="Optional",
             direction="Input"
         )
-        param5.value = True
+        param6.value = True
 
-        # 6. المخرج المشتق (Derived Output) لإضافته تلقائياً للخريطة
-        param6 = arcpy.Parameter(
-            displayName="طبقة الأسهم الناتجة (Output Arrows Layer)",
+        # 7. Derived Output (For auto-adding to active map)
+        param7 = arcpy.Parameter(
+            displayName="Output Flow Arrows Layer",
             name="output_feature_class",
             datatype="DEFeatureClass",
             parameterType="Derived",
             direction="Output"
         )
-        param6.parameterDependencies = [param1.name]
+        param7.parameterDependencies = [param1.name]
 
-        return [param0, param1, param2, param3, param4, param5, param6]
+        return [param0, param1, param2, param3, param4, param5, param6, param7]
 
     def isLicensed(self):
-        """التحقق من توفر ترخيص ArcGIS"""
+        """Set whether tool is licensed to execute."""
         return True
 
     def updateParameters(self, parameters):
+        """Modify the values and properties of parameters before internal validation."""
         return
 
     def updateMessages(self, parameters):
+        """Modify messages created by internal validation."""
         return
 
     def execute(self, parameters, messages):
-        """تنفيذ الأداة"""
+        """Execute the tool."""
         input_layer = parameters[0].valueAsText
         output_workspace = parameters[1].valueAsText
         output_layer_name = parameters[2].valueAsText
-        triangle_base = float(parameters[3].value)
-        triangle_height = float(parameters[4].value)
-        transfer_attributes = bool(parameters[5].value)
+        geom_type = parameters[3].valueAsText  # "Polygon" or "Polyline"
+        triangle_base = float(parameters[4].value)
+        triangle_height = float(parameters[5].value)
+        transfer_attributes = bool(parameters[6].value)
 
-        # التحقق من وجود مسار الحفظ
+        # Validate output workspace
         if not arcpy.Exists(output_workspace):
-            arcpy.AddError(u"مسار الحفظ المحدد غير موجود: {}".format(output_workspace))
+            arcpy.AddError("Specified output workspace does not exist: {}".format(output_workspace))
+            return
+
+        # Validate input layer
+        if not arcpy.Exists(input_layer):
+            arcpy.AddError("Input pipe layer does not exist: {}".format(input_layer))
             return
 
         output_layer = os.path.join(output_workspace, output_layer_name)
 
-        # حذف الطبقة السابقة إذا كانت موجودة
+        # Remove existing layer if present
         if arcpy.Exists(output_layer):
             try:
                 arcpy.Delete_management(output_layer)
-                arcpy.AddMessage(u"تم حذف الطبقة السابقة التي تحمل نفس الاسم: {}".format(output_layer_name))
+                arcpy.AddMessage("Overwriting existing layer: {}".format(output_layer_name))
             except Exception:
                 pass
 
-        # استخراج نظام الإحداثيات
+        # Extract spatial reference
         desc = arcpy.Describe(input_layer)
         spatial_ref = desc.spatialReference
         sr_name = spatial_ref.name if spatial_ref else "Unknown"
-        arcpy.AddMessage(u"نظام الإحداثيات المستخدم: {}".format(sr_name))
+        arcpy.AddMessage("Spatial Reference: {}".format(sr_name))
 
-        # إنشاء Feature Class للمضلعات
+        # Determine target feature class geometry
+        fc_geom_type = "POLYGON" if geom_type.lower() == "polygon" else "POLYLINE"
+
+        # Create output feature class
         arcpy.CreateFeatureclass_management(
             out_path=output_workspace,
             out_name=output_layer_name,
-            geometry_type="POLYGON",
+            geometry_type=fc_geom_type,
             spatial_reference=spatial_ref
         )
-        arcpy.AddMessage(u"تم إنشاء طبقة أسهم الاتجاه الناتجة: {}".format(output_layer_name))
+        arcpy.AddMessage("Created output {} feature class: {}".format(fc_geom_type, output_layer_name))
 
-        # إضافة حقول التدقيق
-        arcpy.AddField_management(output_layer, "ORIG_FID", "LONG", field_alias=u"Original Pipe FID")
+        # Add tracking & QA/QC fields
+        arcpy.AddField_management(output_layer, "ORIG_FID", "LONG", field_alias="Original Pipe FID")
         arcpy.AddField_management(output_layer, "QA_FLOW_STATUS", "TEXT", field_length=30,
-                                 field_alias=u"حالة اتجاه السريان (QA/QC)")
+                                 field_alias="Flow QA/QC Status")
 
-        # استخراج الحقول لنقلها
+        # Inspect fields for attribute transfer
         input_fields = [f.name for f in arcpy.ListFields(input_layer)]
         input_field_objs = {f.name: f for f in arcpy.ListFields(input_layer)}
 
+        # Detect invert elevation fields for automated QA/QC check
         st_inv_field = None
         end_inv_field = None
         for f in input_fields:
@@ -217,7 +240,7 @@ class CreateFlowArrow(object):
                     end_point = line.lastPoint
                     mid_point = line.positionAlongLine(0.5, True).firstPoint
 
-                    # حساب زاوية المماس عند منتصف الماسورة
+                    # Calculate local tangent angle at pipe midpoint
                     try:
                         p_before = line.positionAlongLine(0.49, True).firstPoint
                         p_after = line.positionAlongLine(0.51, True).firstPoint
@@ -231,7 +254,7 @@ class CreateFlowArrow(object):
 
                     angle = math.atan2(dy, dx)
 
-                    # رؤوس المثلث
+                    # Compute arrow head vertices
                     base_left = arcpy.Point(
                         mid_point.X - (triangle_base / 2.0) * math.sin(angle),
                         mid_point.Y + (triangle_base / 2.0) * math.cos(angle)
@@ -245,7 +268,7 @@ class CreateFlowArrow(object):
                         mid_point.Y + triangle_height * math.sin(angle)
                     )
 
-                    # مركز ثقل المثلث وضبط الإزاحة للمنتصف
+                    # Calculate triangle centroid and adjust offset to pipe midpoint
                     mid_tri_x = (base_left.X + base_right.X + tip.X) / 3.0
                     mid_tri_y = (base_left.Y + base_right.Y + tip.Y) / 3.0
 
@@ -256,13 +279,22 @@ class CreateFlowArrow(object):
                     base_right_adj = arcpy.Point(base_right.X + off_x, base_right.Y + off_y)
                     tip_adj = arcpy.Point(tip.X + off_x, tip.Y + off_y)
 
-                    triangle = arcpy.Polygon(
-                        arcpy.Array([base_left_adj, base_right_adj, tip_adj, base_left_adj]),
-                        spatial_ref
-                    )
+                    # Construct requested geometry type
+                    if fc_geom_type == "POLYGON":
+                        # Closed triangular polygon arrow
+                        arrow_geom = arcpy.Polygon(
+                            arcpy.Array([base_left_adj, base_right_adj, tip_adj, base_left_adj]),
+                            spatial_ref
+                        )
+                    else:
+                        # V-shaped open polyline arrowhead
+                        arrow_geom = arcpy.Polyline(
+                            arcpy.Array([base_left_adj, tip_adj, base_right_adj]),
+                            spatial_ref
+                        )
 
-                    # تدقيق المناسيب الهندسية
-                    qa_status = u"Normal Flow"
+                    # Automated QA/QC Inversion Check
+                    qa_status = "Normal Flow"
                     if st_inv_field and end_inv_field:
                         try:
                             st_idx = fields_to_copy.index(st_inv_field)
@@ -271,23 +303,23 @@ class CreateFlowArrow(object):
                             end_val = attr_values[end_idx]
                             if st_val is not None and end_val is not None:
                                 if float(st_val) < float(end_val):
-                                    qa_status = u"REVERSED (تحذير: سريان عكسي)"
+                                    qa_status = "REVERSED (Adverse Slope)"
                                     reversed_count += 1
                         except Exception:
                             pass
 
-                    insert_row = [triangle, orig_fid, qa_status] + attr_values
+                    insert_row = [arrow_geom, orig_fid, qa_status] + attr_values
                     insert_cursor.insertRow(insert_row)
                     feature_count += 1
 
-        arcpy.AddMessage(u"تم إنشاء {} سهم اتجاه سريان بنجاح!".format(feature_count))
+        arcpy.AddMessage("Successfully generated {} flow direction arrows ({}).".format(feature_count, fc_geom_type))
         if reversed_count > 0:
-            arcpy.AddWarning(u"تنبيه تدقيق الجودة (QA/QC): تم رصد {} ماسورة مرسومة بعكس اتجاه الانحدار الطبيعي!".format(reversed_count))
+            arcpy.AddWarning("QA/QC Alert: Detected {} pipe(s) with reversed flow direction against gravity!".format(reversed_count))
 
-        # تعيين قيمة المخرج المشتق لإضافتها تلقائياً للخريطة
-        parameters[6].value = output_layer
+        # Assign derived parameter value for automatic map rendering
+        parameters[7].value = output_layer
 
-        # إضافة صريحة للخريطة النشطة في حال لم تتم إضافتها تلقائياً
+        # Explicit map rendering fallback
         try:
             if hasattr(arcpy, "mp"):
                 aprx = arcpy.mp.ArcGISProject("CURRENT")

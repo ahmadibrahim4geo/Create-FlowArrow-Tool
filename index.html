@@ -579,7 +579,7 @@
               <span class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20 font-inter">Before</span>
             </div>
             <div class="rounded-2xl overflow-hidden border-2 border-rose-500/30 bg-slate-950 shadow-xl group">
-              <img src="Befor.png" alt="Before running CreateFlowArrow Tool" class="w-full h-auto object-cover transform group-hover:scale-105 transition duration-500">
+              <img src="assets/before.png" alt="Before running CreateFlowArrow Tool" class="w-full h-auto object-cover transform group-hover:scale-105 transition duration-500">
             </div>
             <p class="text-[11px] text-slate-400 leading-relaxed px-1">
               المواسير تظهر كخطوط مجردة لا يمكن للعين البشرية أو للتحليلات الهيدروليكية تمييز اتجاه سريانها أو اكتشاف الأخطاء فيها.
@@ -595,7 +595,7 @@
               <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-inter">After</span>
             </div>
             <div class="rounded-2xl overflow-hidden border-2 border-emerald-500/40 bg-slate-950 shadow-xl group">
-              <img src="After.png" alt="After running CreateFlowArrow Tool" class="w-full h-auto object-cover transform group-hover:scale-105 transition duration-500">
+              <img src="assets/after.png" alt="After running CreateFlowArrow Tool" class="w-full h-auto object-cover transform group-hover:scale-105 transition duration-500">
             </div>
             <p class="text-[11px] text-slate-400 leading-relaxed px-1">
               تم توليد أسهم متجهة بمنتصف كل ماسورة، ونقل كافة البيانات، مع تمييز وتحديد أي ماسورة مرسومة بعكس اتجاه الجاذبية بدقة.
@@ -718,24 +718,31 @@
                 <td class="p-4 font-bold text-white">Output Layer Name</td>
                 <td class="p-4 font-mono text-xs">String</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">مطلوب</span></td>
-                <td class="p-4">اسم طبقة أسهم الاتجاه الناتجة (افتراضي: <code>PIPES_FLOW_ARROWS</code>).</td>
+                <td class="p-4">اسم طبقة أسهم الاتجاه الناتجة (افتراضي: <code>Flow_Direction_Arrows</code>).</td>
               </tr>
               <tr class="hover:bg-slate-900/50 transition">
                 <td class="p-4 font-mono font-bold text-ocean-400">3</td>
+                <td class="p-4 font-bold text-white">Output Geometry Type</td>
+                <td class="p-4 font-mono text-xs">String (Choice)</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">مطلوب</span></td>
+                <td class="p-4">نوع هندسة الأسهم الناتجة: مضلع مغلق (<code>Polygon</code>) أو سهم خطي مفتوح (<code>Polyline</code>). (افتراضي: <code>Polygon</code>).</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-ocean-400">4</td>
                 <td class="p-4 font-bold text-white">Arrow Base Width</td>
                 <td class="p-4 font-mono text-xs">Double</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">مطلوب</span></td>
                 <td class="p-4">عرض قاعدة مثلث السهم بالمتر بوحدة الخريطة (افتراضي: <code>2.0</code> متر).</td>
               </tr>
               <tr class="hover:bg-slate-900/50 transition">
-                <td class="p-4 font-mono font-bold text-ocean-400">4</td>
+                <td class="p-4 font-mono font-bold text-ocean-400">5</td>
                 <td class="p-4 font-bold text-white">Arrow Height/Length</td>
                 <td class="p-4 font-mono text-xs">Double</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">مطلوب</span></td>
                 <td class="p-4">ارتفاع / طول السهم من القاعدة إلى الرأس بالمتر (افتراضي: <code>5.0</code> متر).</td>
               </tr>
               <tr class="hover:bg-slate-900/50 transition">
-                <td class="p-4 font-mono font-bold text-ocean-400">5</td>
+                <td class="p-4 font-mono font-bold text-ocean-400">6</td>
                 <td class="p-4 font-bold text-white">Transfer Attributes</td>
                 <td class="p-4 font-mono text-xs">Boolean</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-xs">اختياري</span></td>
@@ -1071,7 +1078,7 @@
         hero_badge: "Dual Compatibility • Seamlessly works in ArcMap 10.1+ & ArcGIS Pro",
         hero_title_1: "CreateFlowArrow Tool",
         hero_title_2: "Flow Direction Arrows & Infrastructure Network QA/QC Auditing",
-        hero_desc: "An advanced, self-contained ArcGIS Python Toolbox (.pyt) engineered to construct geometric polygon arrows representing flow directions for gravity infrastructure networks (sanitary sewer, storm drainage, groundwater lowering). Built with exact centroid midpoint alignment, curve tangent support, and automated elevation inversion auditing.",
+        hero_desc: "An advanced, self-contained ArcGIS Python Toolbox (.pyt) engineered to construct flow direction arrow features (Polygon or Polyline) representing flow directions for gravity infrastructure networks (sanitary sewer, storm drainage, groundwater lowering). Built with exact centroid midpoint alignment, curve tangent support, and automated elevation inversion auditing.",
         hero_btn_download: "Download Toolbox (.pyt)",
         hero_btn_github: "View on GitHub",
         hero_btn_doc: "Text Documentation",
