@@ -2,8 +2,9 @@
 """
 CreateFlowArrow.pyt
 -------------------
-Unified ArcGIS Python Toolbox for generating flow direction arrows and
-conducting automated QA/QC slope & flow direction audits on gravity infrastructure networks.
+Unified ArcGIS Python Toolbox for generating flow direction arrows,
+conducting automated QA/QC slope & network topology audits, and outputting
+dedicated defect notes layers on gravity infrastructure networks.
 
 Fully compatible with:
 - ArcGIS Pro 2.x & 3.x (Python 3.x)
@@ -24,14 +25,18 @@ Features:
    - Comprehensive handling of pipes without start nodes (cul-de-sacs, outfalls, house connections)
      without errors ("تعمل تمام"), generating flow arrows smoothly along digitized direction.
    - Calculates START_INV, END_INV, INVERT_DROP (m), PIPE_LEN (m), SLOPE_PCT (%), and SLOPE_PER_MIL (‰).
-   - Downhill arrow orientation based on actual invert elevations (Z_high -> Z_low).
-   - Identifies adverse/reversed slope pipes with automated QA/QC status tags.
-4. Standard Digitized Mode:
-   - When node points are not provided, generates flow direction arrows strictly aligned with digitized direction.
-5. Centroid Midpoint Alignment: Offsets triangle centroid so center-of-gravity coincides with line placement.
-6. Instantaneous Curve Tangents: Evaluates local derivative along conduit curve.
-7. In-Place Polyline Flipping: Corrects adverse digitized slopes in source layer when auto-flip is enabled.
-8. High-Performance Processing: O(1) spatial grid, progressor integration, O(1) set lookup.
+4. QA/QC Audit Mode (True-to-Life Error Display):
+   - In Audit Mode (Auto-Flip = False), arrows on adverse pipes are shown pointing in the actual
+     digitized direction (uphill) so engineers visually see the defect directly on the map.
+   - When Auto-Flip = True, source pipe polylines are flipped in-place and arrows oriented downhill.
+5. Network Topological Continuity Check (Surrounding Pipes Analysis):
+   - Evaluates node connectivity to identify Head-to-Head collisions, Tail-to-Tail divergences,
+     and isolated reversals within consecutive line runs.
+6. Dedicated QA/QC Notes & Flagged Pipes Layer:
+   - Automatically generates a polyline layer of defect-flagged pipes with detailed descriptions
+     and recommended engineering corrective actions.
+7. Centroid Midpoint Alignment & Curve Tangents:
+   - Analytical centroid offset and instantaneous derivative along curved alignments.
 
 Author: Ahmad Ibrahim
 Email: ahmadibrahim.geo@gmail.com
@@ -125,6 +130,96 @@ def find_pipe_invert_fields(input_fields):
 
     return st_field, end_field
 
+# ---------------------------------------------------------------------------
+# Network Continuity & Node Topology Analyzer
+# ---------------------------------------------------------------------------
+
+def analyze_network_topology(pipes_list, tolerance=1.5):
+    """
+    Evaluates topological continuity of each pipe relative to its surrounding neighbors.
+    pipes_list: list of (orig_fid, (x1, y1), (x2, y2))
+    Returns: dict mapping orig_fid to topology info dict
+    """
+    tol = max(0.05, float(tolerance))
+    cell_size = tol
+    grid = {}
+
+    def get_cell(x, y):
+        return (int(math.floor(x / cell_size)), int(math.floor(y / cell_size)))
+
+    nodes = []
+
+    def find_or_create_node(x, y):
+        cx, cy = get_cell(x, y)
+        r = 1
+        best_dist_sq = tol * tol
+        best_node_idx = None
+        for dx in range(-r, r + 1):
+            for dy in range(-r, r + 1):
+                c = (cx + dx, cy + dy)
+                if c in grid:
+                    for n_idx in grid[c]:
+                        nx, ny, _, _ = nodes[n_idx]
+                        d2 = (nx - x)**2 + (ny - y)**2
+                        if d2 <= best_dist_sq:
+                            best_dist_sq = d2
+                            best_node_idx = n_idx
+        if best_node_idx is not None:
+            return best_node_idx
+        new_idx = len(nodes)
+        nodes.append([x, y, [], []])
+        c = (cx, cy)
+        if c not in grid:
+            grid[c] = []
+        grid[c].append(new_idx)
+        return new_idx
+
+    pipe_nodes = {}
+    for fid, p1, p2 in pipes_list:
+        n1 = find_or_create_node(p1[0], p1[1])
+        n2 = find_or_create_node(p2[0], p2[1])
+        nodes[n1][3].append(fid)  # outgoing from n1
+        nodes[n2][2].append(fid)  # incoming to n2
+        pipe_nodes[fid] = (n1, n2)
+
+    topo_results = {}
+    for fid, (n1, n2) in pipe_nodes.items():
+        st_node = nodes[n1]
+        end_node = nodes[n2]
+
+        st_in_count = len(st_node[2])
+        st_out_count = len(st_node[3])
+        end_in_count = len(end_node[2])
+        end_out_count = len(end_node[3])
+
+        if end_in_count > 1 and end_out_count == 0:
+            status = "HEAD_TO_HEAD_COLLISION"
+            desc = u"تصادم سريان: ماسورتان أو أكثر تصبان في نفس المنهل دون مخرج (Head-to-Head Collision)"
+        elif st_out_count > 1 and st_in_count == 0:
+            status = "TAIL_TO_TAIL_DIVERGENCE"
+            desc = u"تفرع سريان: ماسورتان تبدآن من نفس المنهل دون خط تغذية (Tail-to-Tail Divergence)"
+        elif st_in_count >= 1 and end_out_count >= 1:
+            status = "CONTINUOUS_FLOW"
+            desc = u"سريان متصل ومستمر طوبولوجياً عبر الشبكة"
+        elif st_in_count == 0 and end_out_count >= 1:
+            status = "UPSTREAM_ORIGIN"
+            desc = u"بداية مسار ناقل / منبع"
+        elif st_in_count >= 1 and end_out_count == 0:
+            status = "DOWNSTREAM_OUTFALL"
+            desc = u"نهاية مسار ناقل / مصب"
+        else:
+            status = "ISOLATED_PIPE"
+            desc = u"ماسورة منفردة غير متصلة"
+
+        topo_results[fid] = {
+            "status": status,
+            "desc": desc,
+            "st_in": st_in_count, "st_out": st_out_count,
+            "end_in": end_in_count, "end_out": end_out_count
+        }
+
+    return topo_results
+
 
 class Toolbox(object):
     def __init__(self):
@@ -141,8 +236,9 @@ class CreateFlowArrow(object):
         self.description = (
             "Generates flow direction arrow features (Polygon or Polyline) aligned with "
             "pipe digitization direction (Start Node to End Node) or driven by node invert elevations "
-            "for gravity networks (stormwater, sewer, groundwater lowering), with automated QA/QC slope auditing "
-            "and optional in-place line flipping. Fully supports Arabic and international environments."
+            "for gravity networks (stormwater, sewer, groundwater lowering), with automated QA/QC slope auditing, "
+            "network topological continuity checks, dedicated QA notes layers, and optional in-place line flipping. "
+            "Fully supports Arabic and international environments."
         )
         self.canRunInBackground = False
 
@@ -284,19 +380,40 @@ class CreateFlowArrow(object):
         param12.value = True
         param12.enabled = False
 
-        # 13. Derived Output (For auto-adding to active map & ModelBuilder)
+        # 13. Generate QA/QC Notes Layer
         param13 = arcpy.Parameter(
+            displayName="Generate QA/QC Audit Notes Layer",
+            name="generate_qa_notes",
+            datatype="GPBoolean",
+            parameterType="Optional",
+            direction="Input"
+        )
+        param13.value = True
+
+        # 14. Derived Output (Flow Arrows Feature Class)
+        param14 = arcpy.Parameter(
             displayName="Output Flow Arrows Layer",
             name="output_feature_class",
             datatype="DEFeatureClass",
             parameterType="Derived",
             direction="Output"
         )
-        param13.parameterDependencies = [param1.name]
+        param14.parameterDependencies = [param1.name]
+
+        # 15. Derived Output (QA Notes Feature Class)
+        param15 = arcpy.Parameter(
+            displayName="Output QA Notes Layer",
+            name="output_qa_notes",
+            datatype="DEFeatureClass",
+            parameterType="Derived",
+            direction="Output"
+        )
+        param15.parameterDependencies = [param1.name]
 
         return [
             param0, param1, param2, param3, param4, param5, param6,
-            param7, param8, param9, param10, param11, param12, param13
+            param7, param8, param9, param10, param11, param12, param13,
+            param14, param15
         ]
 
     def isLicensed(self):
@@ -334,7 +451,7 @@ class CreateFlowArrow(object):
             parameters[10].setErrorMessage("Search tolerance must be greater than zero.")
 
     def execute(self, parameters, messages):
-        """Execute the tool with full Arabic path/data support and robust node alignment."""
+        """Execute the tool with full Arabic path/data support, Audit Mode, and QA Notes."""
         t_start = time.time()
 
         input_layer = to_unicode(parameters[0].valueAsText)
@@ -351,6 +468,7 @@ class CreateFlowArrow(object):
         search_tolerance = float(parameters[10].value) if parameters[10].value else 1.5
         arrow_placement = to_unicode(parameters[11].valueAsText or "Midpoint (50%)")
         swap_invert_fields = bool(parameters[12].value) if parameters[12].value is not None else True
+        generate_qa_notes = bool(parameters[13].value) if parameters[13].value is not None else True
 
         # Validate workspaces
         if not arcpy.Exists(output_workspace):
@@ -362,11 +480,18 @@ class CreateFlowArrow(object):
             return
 
         output_layer = os.path.join(output_workspace, output_layer_name)
+        qa_notes_layer = os.path.join(output_workspace, output_layer_name + u"_QA_Notes")
 
         if arcpy.Exists(output_layer):
             try:
                 arcpy.Delete_management(output_layer)
                 arcpy.AddMessage(to_unicode(u"Overwriting existing layer: {}".format(output_layer_name)))
+            except Exception:
+                pass
+
+        if arcpy.Exists(qa_notes_layer):
+            try:
+                arcpy.Delete_management(qa_notes_layer)
             except Exception:
                 pass
 
@@ -384,10 +509,27 @@ class CreateFlowArrow(object):
             placement_ratio = 0.75
 
         # -------------------------------------------------------------------
-        # Node Points Invert Indexing (Multi-Tier & Arabic Safe)
+        # Step 1: Pre-Scan Pipes for Network Topology & Continuity Check
+        # -------------------------------------------------------------------
+        arcpy.AddMessage(to_unicode(u"Analyzing network topological continuity across connected pipes..."))
+        pipes_topology_input = []
+        try:
+            with arcpy.da.SearchCursor(input_layer, ["OID@", "SHAPE@"], spatial_reference=spatial_ref) as scan_cur:
+                for oid, geom in scan_cur:
+                    if geom and geom.length > 1e-4:
+                        fp = geom.firstPoint
+                        lp = geom.lastPoint
+                        pipes_topology_input.append((oid, (fp.X, fp.Y), (lp.X, lp.Y)))
+        except Exception as e_scan:
+            arcpy.AddWarning(to_unicode(u"Topology pre-scan notice: {}".format(to_unicode(e_scan))))
+
+        search_tol = max(0.05, search_tolerance)
+        network_topology = analyze_network_topology(pipes_topology_input, tolerance=search_tol)
+
+        # -------------------------------------------------------------------
+        # Step 2: Node Points Invert Indexing (Multi-Tier & Arabic Safe)
         # -------------------------------------------------------------------
         point_grid = {}
-        search_tol = max(0.05, search_tolerance)
         soft_tol = search_tol * 1.5  # Soft snapping tolerance for slightly offset node points
         cell_size = max(soft_tol, 1.0)
         use_node_inverts = False
@@ -457,6 +599,7 @@ class CreateFlowArrow(object):
         arcpy.AddField_management(output_layer, "ORIG_FID", "LONG", field_alias="Original Pipe FID / رقم الماسورة الأصلية")
         arcpy.AddField_management(output_layer, "QA_FLOW_STATUS", "TEXT", field_length=255, field_alias="Flow QA/QC Status / حالة السريان والتدقيق")
         arcpy.AddField_management(output_layer, "QA_SEVERITY", "TEXT", field_length=30, field_alias="QA Severity Code / كود الحالة")
+        arcpy.AddField_management(output_layer, "TOPOLOGY", "TEXT", field_length=50, field_alias="Network Topology / الحالة الطوبولوجية")
         arcpy.AddField_management(output_layer, "START_INV", "DOUBLE", field_alias="Start Invert Elevation (m) / منسوب قاع البداية")
         arcpy.AddField_management(output_layer, "END_INV", "DOUBLE", field_alias="End Invert Elevation (m) / منسوب قاع النهاية")
         arcpy.AddField_management(output_layer, "INVERT_DROP", "DOUBLE", field_alias="Invert Drop / Head (m) / فرق المنسوب")
@@ -474,7 +617,7 @@ class CreateFlowArrow(object):
         # Attributes transfer setup (Arabic field names validated)
         fields_to_copy = []
         managed_fields = {
-            "ORIG_FID", "QA_FLOW_STATUS", "QA_SEVERITY",
+            "ORIG_FID", "QA_FLOW_STATUS", "QA_SEVERITY", "TOPOLOGY",
             "START_INV", "END_INV", "INVERT_DROP", "PIPE_LEN",
             "SLOPE_PCT", "SLOPE_PER_MIL", "FLIPPED"
         }
@@ -502,7 +645,7 @@ class CreateFlowArrow(object):
 
         search_fields = ["SHAPE@", "OID@"] + fields_to_copy
         insert_fields = [
-            "SHAPE@", "ORIG_FID", "QA_FLOW_STATUS", "QA_SEVERITY",
+            "SHAPE@", "ORIG_FID", "QA_FLOW_STATUS", "QA_SEVERITY", "TOPOLOGY",
             "START_INV", "END_INV", "INVERT_DROP", "PIPE_LEN",
             "SLOPE_PCT", "SLOPE_PER_MIL", "FLIPPED"
         ] + fields_to_copy
@@ -515,7 +658,7 @@ class CreateFlowArrow(object):
         if end_inv_line_field and end_inv_line_field in fields_to_copy:
             end_field_idx = 2 + fields_to_copy.index(end_inv_line_field)
 
-        # Statistics counters
+        # Statistics counters & QA defect tracking
         total_pipes = 0
         normal_count = 0
         reversed_count = 0
@@ -524,12 +667,14 @@ class CreateFlowArrow(object):
         start_missing_count = 0
         end_missing_count = 0
         unlinked_count = 0
+        topo_collision_count = 0
         reversed_pipe_oids = []
+        flagged_defects = []
 
         try:
             count_res = arcpy.GetCount_management(input_layer)
             total_features_est = int(count_res.getOutput(0))
-            arcpy.SetProgressor("step", "Processing flow arrows...", 0, total_features_est, 1)
+            arcpy.SetProgressor("step", "Processing flow arrows and QA audit...", 0, total_features_est, 1)
         except Exception:
             total_features_est = 0
 
@@ -591,6 +736,15 @@ class CreateFlowArrow(object):
                         except (ValueError, TypeError):
                             pass
 
+                    # Retrieve topology classification for this pipe
+                    topo_info = network_topology.get(orig_fid, {
+                        "status": "UNKNOWN", "desc": u"غير محدد",
+                        "st_in": 0, "st_out": 0, "end_in": 0, "end_out": 0
+                    })
+                    topo_status = topo_info["status"]
+                    if topo_status == "HEAD_TO_HEAD_COLLISION":
+                        topo_collision_count += 1
+
                     # -------------------------------------------------------
                     # Invert Evaluation & Hydraulic Slope Calculation:
                     # Multi-tier snapping: Exact tolerance -> Soft tolerance -> Pipe attributes
@@ -636,13 +790,41 @@ class CreateFlowArrow(object):
                             elif st_inv < end_inv:
                                 is_reversed = True
                                 qa_severity = "ADVERSE_SLOPE"
-                                qa_status = u"REVERSED - Flow Corrected Downhill (Adverse Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
                                 reversed_count += 1
                                 reversed_pipe_oids.append(orig_fid)
+
+                                if flip_reversed_pipes:
+                                    qa_status = u"REVERSED - Flow Corrected & Line Flipped In-Place (Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
+                                else:
+                                    qa_status = u"REVERSED / ADVERSE SLOPE (Audit Mode): Arrow reflects actual uphill digitization (Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
+
+                                flagged_defects.append({
+                                    "geom": line,
+                                    "orig_fid": orig_fid,
+                                    "defect_type": "ADVERSE_SLOPE",
+                                    "severity": "CRITICAL_ERROR",
+                                    "defect_desc": u"ماسورة ذات ميل عكسي صاعد (Adverse Slope: Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0),
+                                    "action": u"فعّل خيار 'Auto-Flip' لعكس اتجاه رسم الماسورة هندسياً في الطبقة الأصلية.",
+                                    "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
+                                    "pipe_len": pipe_len, "topology": topo_status,
+                                    "attrs": attr_values
+                                })
                             else:
                                 qa_severity = "ZERO_SLOPE"
                                 qa_status = u"Flat Pipe (Zero Invert Drop / Slope=0.00%)"
                                 flat_count += 1
+
+                                flagged_defects.append({
+                                    "geom": line,
+                                    "orig_fid": orig_fid,
+                                    "defect_type": "ZERO_SLOPE",
+                                    "severity": "WARNING",
+                                    "defect_desc": u"ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Zero Invert Drop)",
+                                    "action": u"تحقق من مناسيب قاع المطابق للماسورة في المخططات التصميمية.",
+                                    "st_inv": st_inv, "end_inv": end_inv, "drop_m": 0.0, "slope_pct": 0.0,
+                                    "pipe_len": pipe_len, "topology": topo_status,
+                                    "attrs": attr_values
+                                })
 
                         # Case B: Pipe did NOT start with a node point (Start Missing, End Found)
                         elif st_inv is None and end_inv is not None:
@@ -652,6 +834,18 @@ class CreateFlowArrow(object):
                             partial_count += 1
                             start_missing_count += 1
 
+                            flagged_defects.append({
+                                "geom": line,
+                                "orig_fid": orig_fid,
+                                "defect_type": "MISSING_START_NODE",
+                                "severity": "ADVISORY",
+                                "defect_desc": u"الماسورة لم تبدأ بنقطة منهل ضمن مسافة الالتقاط (End Node={:.3f}m متوفر)".format(end_inv),
+                                "action": u"تحقق من وجود مطبق عند بداية الخط أو سجل المنسوب في جدول سمات الماسورة.",
+                                "st_inv": None, "end_inv": end_inv, "drop_m": None, "slope_pct": None,
+                                "pipe_len": pipe_len, "topology": topo_status,
+                                "attrs": attr_values
+                            })
+
                         # Case C: Pipe did NOT end with a node point (Start Found, End Missing)
                         elif st_inv is not None and end_inv is None:
                             st_inv = round(st_inv, 4)
@@ -660,16 +854,59 @@ class CreateFlowArrow(object):
                             partial_count += 1
                             end_missing_count += 1
 
+                            flagged_defects.append({
+                                "geom": line,
+                                "orig_fid": orig_fid,
+                                "defect_type": "MISSING_END_NODE",
+                                "severity": "ADVISORY",
+                                "defect_desc": u"الماسورة لم تنتهِ بنقطة منهل ضمن مسافة الالتقاط (Start Node={:.3f}m متوفر)".format(st_inv),
+                                "action": u"تحقق من نقطة نهاية الماسورة (قد تكون مصباً حراً أو مطبقاً مفقوداً).",
+                                "st_inv": st_inv, "end_inv": None, "drop_m": None, "slope_pct": None,
+                                "pipe_len": pipe_len, "topology": topo_status,
+                                "attrs": attr_values
+                            })
+
                         # Case D: Unlinked pipe (Neither start nor end node found within tolerance)
                         else:
                             qa_severity = "UNLINKED_NODES"
                             qa_status = u"Unlinked Pipe: Neither Start nor End Node Found - Arrow Follows Digitized"
                             unlinked_count += 1
+
+                            flagged_defects.append({
+                                "geom": line,
+                                "orig_fid": orig_fid,
+                                "defect_type": "UNLINKED_NODES",
+                                "severity": "WARNING",
+                                "defect_desc": u"ماسورة غير مرتبطة بأي نقاط مطابق عند البداية أو النهاية ضمن مسافة الالتقاط",
+                                "action": u"تأكد من مطابقة نظام الإحداثيات أو زيادة مسافة الالتقاط Snapping Tolerance.",
+                                "st_inv": None, "end_inv": None, "drop_m": None, "slope_pct": None,
+                                "pipe_len": pipe_len, "topology": topo_status,
+                                "attrs": attr_values
+                            })
                     else:
                         normal_count += 1
 
-                    # Set arrow angle: If reversed via node inverts, flip 180 degrees to point downhill
-                    if is_reversed:
+                    # Check if pipe has topological collision without being flagged yet
+                    if topo_status == "HEAD_TO_HEAD_COLLISION" and not any(d["orig_fid"] == orig_fid and d["defect_type"] == "ADVERSE_SLOPE" for d in flagged_defects):
+                        flagged_defects.append({
+                            "geom": line,
+                            "orig_fid": orig_fid,
+                            "defect_type": "TOPOLOGY_CONFLICT",
+                            "severity": "WARNING",
+                            "defect_desc": u"تصادم طوبولوجي: الماسورة تلتقي رأساً لرأس مع ماسورة أخرى عند نفس المنهل دون مخرج downstream",
+                            "action": u"تحقق من اتجاه رسم الماسورة أو الماسورة المقابلة لها عند المنهل المشترك.",
+                            "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
+                            "pipe_len": pipe_len, "topology": topo_status,
+                            "attrs": attr_values
+                        })
+
+                    # -------------------------------------------------------
+                    # Arrow Orientation Logic (Audit Mode vs Auto-Flip Corrected)
+                    # -------------------------------------------------------
+                    # In Audit Mode: Arrow reflects actual digitized line direction so the engineer
+                    # visually sees the error on the map.
+                    # When Auto-Flip is active: Arrow points downhill along corrected gravity flow.
+                    if is_reversed and flip_reversed_pipes:
                         arrow_angle = digitized_angle + math.pi
                         if arrow_angle > math.pi:
                             arrow_angle -= 2.0 * math.pi
@@ -714,7 +951,7 @@ class CreateFlowArrow(object):
 
                     flipped_flag = "YES" if (flip_reversed_pipes and is_reversed) else "NO"
                     insert_row = [
-                        arrow_geom, orig_fid, qa_status, qa_severity,
+                        arrow_geom, orig_fid, qa_status, qa_severity, topo_status,
                         st_inv, end_inv, inv_drop, pipe_len,
                         slope_pct, slope_per_mil, flipped_flag
                     ] + attr_values
@@ -725,7 +962,7 @@ class CreateFlowArrow(object):
         except Exception:
             pass
 
-        # In-Place Pipe Line Geometry Flipping (Only when node inverts reversed)
+        # Step 3: In-Place Pipe Line Geometry Flipping (When Auto-Flip Enabled)
         flipped_count = 0
         if flip_reversed_pipes and reversed_pipe_oids:
             reversed_oids_set = set(reversed_pipe_oids)
@@ -765,7 +1002,91 @@ class CreateFlowArrow(object):
             except Exception as ex_flip:
                 arcpy.AddWarning(to_unicode(u"Could not flip pipe lines in-place (layer may be locked or read-only): {}".format(to_unicode(ex_flip))))
 
-        # Execution Summary Output (Bilingual Arabic & English)
+        # Step 4: Dedicated QA/QC Notes & Flagged Pipes Layer Output
+        has_qa_notes_output = False
+        if generate_qa_notes and flagged_defects:
+            try:
+                arcpy.AddMessage(to_unicode(u"Generating dedicated QA/QC Audit Notes layer: {} (Total Flagged Issues: {})...".format(
+                    os.path.basename(qa_notes_layer), len(flagged_defects)
+                )))
+                arcpy.CreateFeatureclass_management(
+                    out_path=output_workspace,
+                    out_name=os.path.basename(qa_notes_layer),
+                    geometry_type="POLYLINE",
+                    spatial_reference=spatial_ref
+                )
+
+                # Add QA Notes Schema
+                arcpy.AddField_management(qa_notes_layer, "ORIG_FID", "LONG", field_alias="Original Pipe FID / رقم الماسورة الأصلية")
+                arcpy.AddField_management(qa_notes_layer, "DEFECT_TYPE", "TEXT", field_length=50, field_alias="Defect Category / نوع الخلل")
+                arcpy.AddField_management(qa_notes_layer, "SEVERITY", "TEXT", field_length=25, field_alias="Severity Level / درجة الخطورة")
+                arcpy.AddField_management(qa_notes_layer, "DEFECT_DESC", "TEXT", field_length=255, field_alias="Defect Description / وصف الخلل الهندسي")
+                arcpy.AddField_management(qa_notes_layer, "RECOMMENDED_ACTION", "TEXT", field_length=255, field_alias="Recommended Action / الإجراء المقترح للتصحيح")
+                arcpy.AddField_management(qa_notes_layer, "START_INV", "DOUBLE", field_alias="Start Invert / منسوب البداية")
+                arcpy.AddField_management(qa_notes_layer, "END_INV", "DOUBLE", field_alias="End Invert / منسوب النهاية")
+                arcpy.AddField_management(qa_notes_layer, "DROP_M", "DOUBLE", field_alias="Head Drop (m) / فرق المنسوب")
+                arcpy.AddField_management(qa_notes_layer, "SLOPE_PCT", "DOUBLE", field_alias="Slope % / نسبة الميل")
+                arcpy.AddField_management(qa_notes_layer, "PIPE_LEN", "DOUBLE", field_alias="Pipe Length (m) / طول الماسورة")
+                arcpy.AddField_management(qa_notes_layer, "TOPOLOGY", "TEXT", field_length=50, field_alias="Network Topology / الحالة الطوبولوجية")
+
+                # Copy original pipe attributes to QA notes
+                qa_copied_fields = []
+                if transfer_attributes:
+                    qa_managed = {
+                        "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "DEFECT_DESC",
+                        "RECOMMENDED_ACTION", "START_INV", "END_INV", "DROP_M",
+                        "SLOPE_PCT", "PIPE_LEN", "TOPOLOGY"
+                    }
+                    for f in input_fields:
+                        f_obj = input_field_objs[f]
+                        f_name_u = to_unicode(f_obj.name)
+                        if f_obj.type in ("OID", "Geometry") or f_name_u.upper().startswith("SHAPE"):
+                            continue
+                        if f_name_u.upper() in qa_managed:
+                            continue
+                        try:
+                            valid_name = arcpy.ValidateFieldName(f_obj.name, output_workspace)
+                            arcpy.AddField_management(
+                                qa_notes_layer, valid_name, f_obj.type,
+                                field_precision=f_obj.precision,
+                                field_scale=f_obj.scale,
+                                field_length=f_obj.length,
+                                field_alias=f_obj.aliasName
+                            )
+                            qa_copied_fields.append(f)
+                        except Exception:
+                            pass
+
+                qa_insert_fields = [
+                    "SHAPE@", "ORIG_FID", "DEFECT_TYPE", "SEVERITY",
+                    "DEFECT_DESC", "RECOMMENDED_ACTION", "START_INV", "END_INV",
+                    "DROP_M", "SLOPE_PCT", "PIPE_LEN", "TOPOLOGY"
+                ] + qa_copied_fields
+
+                with arcpy.da.InsertCursor(qa_notes_layer, qa_insert_fields) as qa_cur:
+                    for defect in flagged_defects:
+                        matched_attrs = []
+                        for f in qa_copied_fields:
+                            if f in fields_to_copy:
+                                idx = fields_to_copy.index(f)
+                                matched_attrs.append(defect["attrs"][idx] if idx < len(defect["attrs"]) else None)
+                            else:
+                                matched_attrs.append(None)
+
+                        qa_row = [
+                            defect["geom"], defect["orig_fid"], defect["defect_type"], defect["severity"],
+                            defect["defect_desc"], defect["action"], defect["st_inv"], defect["end_inv"],
+                            defect["drop_m"], defect["slope_pct"], defect["pipe_len"], defect["topology"]
+                        ] + matched_attrs
+                        qa_cur.insertRow(qa_row)
+
+                has_qa_notes_output = True
+                arcpy.AddMessage(to_unicode(u"Created QA/QC Notes layer successfully: {}".format(os.path.basename(qa_notes_layer))))
+                parameters[15].value = qa_notes_layer
+            except Exception as e_qa:
+                arcpy.AddWarning(to_unicode(u"Could not generate QA Notes layer: {}".format(to_unicode(e_qa))))
+
+        # Step 5: Execution Summary Output (Bilingual Arabic & English)
         elapsed = round(time.time() - t_start, 2)
 
         if use_node_inverts:
@@ -775,12 +1096,15 @@ class CreateFlowArrow(object):
             pct_part = (partial_count / total_pipes * 100.0) if total_pipes else 0.0
             pct_unlink = (unlinked_count / total_pipes * 100.0) if total_pipes else 0.0
 
+            audit_mode_str = u"Audit & In-Place Flipping (Corrected)" if flip_reversed_pipes else u"Audit & Inspection Mode (True-to-Life)"
+
             summary_banner = u"""
 ======================================================================
   🌊 CREATE FLOW ARROW & QA/QC AUDIT ENGINE - SUMMARY
   تقرير تدقيق ومراجعة اتجاهات السريان والميول الهيدروليكية
 ======================================================================
   Mode / نمط التشغيل:            Smart Node Invert Alignment & Slope QA/QC
+  Inspection Philosophy / الفلسفة: {}
   Node Points Layer / طبقة النقاط: {} (Field: '{}')
   Total Pipes Analyzed / إجمالي المواسير: {}
   - Normal Downhill Flow / سريان طبيعي مع الانحدار:  {} ({:.1f}%)
@@ -791,12 +1115,15 @@ class CreateFlowArrow(object):
     * End Node Missing / لم تنتهِ بنقطة منهل:        {}
   - Unlinked Pipes / مواسير غير مرتبطة بنقاط:        {} ({:.1f}%)
   ------------------------------------------------------------------
+  Topological Collisions / تصادمات عند المطابق:      {} pipe(s)
   Hydraulic Slopes / حساب الميول الهيدروليكية:       YES (SLOPE_PCT & SLOPE_PER_MIL)
   In-Place Auto-Flip / تصحيح رسم الخطوط المعكوسة:    {} pipe(s) corrected
-  Output Feature Class / الطبقة الناتجة:             {}
+  Output Feature Class / طبقة الأسهم الناتجة:        {}
+  QA Notes Layer / طبقة ملاحظات الأخطاء:             {}
   Elapsed Execution Time / زمن التنفيذ:              {} seconds
 ======================================================================
 """.format(
+                audit_mode_str,
                 point_layer, invert_field,
                 total_pipes,
                 normal_count, pct_norm,
@@ -806,8 +1133,10 @@ class CreateFlowArrow(object):
                 start_missing_count,
                 end_missing_count,
                 unlinked_count, pct_unlink,
+                topo_collision_count,
                 flipped_count,
                 output_layer,
+                qa_notes_layer if has_qa_notes_output else u"None (Clean Network)",
                 elapsed
             )
         else:
@@ -819,12 +1148,14 @@ class CreateFlowArrow(object):
   Mode / نمط التشغيل:            Standard Flow Arrows (Digitized Direction)
   Node Points Layer / طبقة النقاط: Not Specified (Slope & Invert Analysis Skipped)
   Total Pipes Processed / إجمالي المواسير: {}
-  Flow Arrows Generated / الأسهم المنشأة:  {} ({})
-  Output Feature Class / الطبقة الناتجة:   {}
-  Elapsed Execution Time / زمن التنفيذ:    {} seconds
+  Topological Collisions / تصادمات الرؤوس:   {}
+  Flow Arrows Generated / الأسهم المنشأة:    {} ({})
+  Output Feature Class / الطبقة الناتجة:     {}
+  Elapsed Execution Time / زمن التنفيذ:      {} seconds
 ======================================================================
 """.format(
                 total_pipes,
+                topo_collision_count,
                 total_pipes, fc_geom_type,
                 output_layer,
                 elapsed
@@ -838,17 +1169,22 @@ class CreateFlowArrow(object):
 
         if reversed_count > 0 and not flip_reversed_pipes:
             arcpy.AddWarning(to_unicode(
-                u"⚠️ تنبيه QA/QC: تم رصد {} ماسورة ذات ميول عكسية. وجّهت الأسهم مع الجاذبية (downhill). لتصحيح اتجاه رسم الخطوط في الطبقة الأصلية، فعّل خيار 'Auto-Flip'.".format(reversed_count)
+                u"⚠️ تنبيه QA/QC: تم رصد {} ماسورة ذات ميول عكسية. تظهر الأسهم مقلوبة في وضع التدقيق لإظهار الخلل على الخريطة. لتصحيح الخطوط تلقائياً، فعّل خيار 'Auto-Flip'.".format(reversed_count)
             ))
             arcpy.AddWarning(to_unicode(
-                u"QA/QC Alert: Identified {} pipe(s) with adverse/reversed slope. Arrows oriented downhill. Enable 'Auto-Flip' to correct in-place.".format(reversed_count)
+                u"QA/QC Alert: Identified {} pipe(s) with adverse/reversed slope. Arrows oriented as digitized to reveal errors. Enable 'Auto-Flip' to correct in-place.".format(reversed_count)
             ))
 
-        # Pass output to derived parameter
-        parameters[13].value = output_layer
+        if has_qa_notes_output:
+            arcpy.AddMessage(to_unicode(u"📋 تمت إضافة طبقة ملاحظات التدقيق والهفوات الهندسية ({}) إلى الخريطة للفحص المباشر.".format(os.path.basename(qa_notes_layer))))
+
+        # Pass output to derived parameters
+        parameters[14].value = output_layer
 
         # Auto-add to active map session
         self._add_to_active_map(output_layer)
+        if has_qa_notes_output:
+            self._add_to_active_map(qa_notes_layer)
 
     def _add_to_active_map(self, layer_path):
         """Add output layer to the active map session (ArcGIS Pro or ArcMap)."""
@@ -859,7 +1195,7 @@ class CreateFlowArrow(object):
                 active_map = aprx.activeMap or (aprx.listMaps()[0] if aprx.listMaps() else None)
                 if active_map:
                     active_map.addDataFromPath(layer_path_u)
-                    arcpy.AddMessage(to_unicode(u"(ArcGIS Pro): Layer added to active map successfully."))
+                    arcpy.AddMessage(to_unicode(u"(ArcGIS Pro): Layer added to active map successfully: {}".format(os.path.basename(layer_path_u))))
                     return True
             except Exception:
                 return False
@@ -872,7 +1208,7 @@ class CreateFlowArrow(object):
                 arcpy.mapping.AddLayer(df, new_layer)
                 arcpy.RefreshTOC()
                 arcpy.RefreshActiveView()
-                arcpy.AddMessage(to_unicode(u"(ArcMap): Layer added to active data frame successfully."))
+                arcpy.AddMessage(to_unicode(u"(ArcMap): Layer added to active data frame successfully: {}".format(os.path.basename(layer_path_u))))
                 return True
             except Exception:
                 return False

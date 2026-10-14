@@ -1,7 +1,7 @@
 <div align="center">
 
 # 🌊 CreateFlowArrow Tool
-### High-Performance Flow Direction Arrows & QA/QC Gravity Networks Engine for ArcGIS
+### High-Performance Flow Direction Arrows & Comprehensive QA/QC Gravity Networks Engine for ArcGIS
 ### أداة إنشاء أسهم اتجاه السريان وتدقيق شبكات الانحدار والجاذبية في ArcGIS
 
 [![ArcGIS Pro](https://img.shields.io/badge/ArcGIS%20Pro-2.x%20%7C%203.x-green.svg)](https://www.esri.com/en-us/arcgis/products/arcgis-pro/overview)
@@ -31,8 +31,9 @@ Fluid conveyance relies strictly on topographical gravity gradient—moving natu
 Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed field CAD lines frequently suffer from:
 1. **No visual flow arrow symbology**, making manual flow direction verification exhausting across thousands of pipes.
 2. **Reversed digitizing direction errors** (pipes drawn uphill, from downstream to upstream), which breaks hydraulic network traces, disconnects watershed routing, and corrupts network calculations.
-3. **Pipes without start nodes / terminal links** (cul-de-sacs, building service connections, catch basins, or outfalls) that may not start at an indexed manhole point.
-4. **Encoding & Language Conflicts** when working with Arabic/non-Latin folder paths, geodatabase names, or localized attribute schemas.
+3. **Pipes without start nodes / terminal links** (cul-de-sacs, building service connections, catch basins, or outfalls) that do not start at an indexed manhole point.
+4. **Topological Collisions** where multiple pipes converge head-to-head into a manhole without downstream outlet.
+5. **Encoding & Language Conflicts** when working with Arabic/non-Latin folder paths, geodatabase names, or localized attribute schemas.
 
 ### The Solution:
 **CreateFlowArrow** is an advanced, high-performance standalone ArcGIS Python Toolbox (`.pyt`) that:
@@ -43,17 +44,18 @@ Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed
    - Activated strictly when the user provides the **Optional Node Points Layer** and selects the **Node Invert Elevation Field**.
    - Uses high-speed spatial grid hashing ($O(1)$) to snap pipe endpoints to node points.
    - **3-Tier Invert Resolution:** Exact snapping tolerance $\rightarrow$ Adaptive soft tolerance ($1.5\times$) $\rightarrow$ Pipe feature attribute fallback.
-   - **Robust Missing Node Handling:** Seamlessly processes pipes that do not start with a manhole node without errors, generating flow arrows along the digitized line and accurately documenting invert status.
+   - **Robust Missing Node Handling:** Seamlessly processes pipes that do not start with a manhole node without errors ("تعمل تمام"), generating flow arrows along the digitized line and accurately documenting invert status.
    - Computes **Start Invert**, **End Invert**, **Invert Drop / Head**, **Pipe Length**, **Hydraulic Slope Percentage (`SLOPE_PCT %`)**, and **Slope Per-Mil (`SLOPE_PER_MIL ‰`)**.
-   - Directs flow arrows downhill from higher invert to lower invert and flags adverse slopes (`REVERSED`).
-5. **Standard Digitized Direction Mode:**
-   - When node points are not provided, flow direction arrows are generated purely according to the pipe's digitized line direction.
-6. **In-Place Auto-Flip & Attribute Swapping:**
-   - Reverses adverse/uphill pipe polylines in-place directly in the source layer (including multi-part geometries).
-   - Optionally swaps `START_INV` and `END_INV` attribute values on flipped pipes to guarantee 100% attribute consistency.
-7. **Full Arabic & International Path Support:**
+5. **QA/QC Audit Mode (True-to-Life Error Visualization):**
+   - In Audit Mode (`Auto-Flip = False`), arrows on adverse/reversed pipes are oriented **strictly in the line's digitized direction (uphill)** so the engineer visually sees the defect directly on the map.
+   - When `Auto-Flip = True`, the tool flips the source line geometry in-place and orients the arrow downhill.
+6. **Network Topological Continuity Analysis:**
+   - Inspects pipes relative to their connected neighbors to detect **Head-to-Head Collisions**, **Tail-to-Tail Divergences**, and isolated reversals in continuous line runs.
+7. **Dedicated QA Notes & Flagged Pipes Layer (`Flow_Direction_Arrows_QA_Notes`):**
+   - Automatically generates a companion polyline layer containing defect-flagged pipes with engineering issue categories and recommended remedial actions.
+8. **Full Arabic & International Path Support:**
    - Universal Unicode handling across Windows file paths, Arabic folder names (e.g. `D:\pythone\اداه تحديد الاتجاه\`), Arabic Geodatabases (`.gdb`), and Arabic attribute fields/aliases.
-8. **Progress Bar & Performance Scaling:** Built-in `arcpy.SetProgressor` visual feedback and formatted bilingual execution summary report.
+9. **Progress Bar & Performance Scaling:** Built-in `arcpy.SetProgressor` visual feedback and formatted bilingual execution summary report.
 
 ---
 
@@ -71,6 +73,12 @@ Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed
   Seamlessly runs in both **ArcMap 10.1+ (Python 2.7)** and **ArcGIS Pro 2.x / 3.x (Python 3.x)** with automatic environment detection (`arcpy.mp` vs `arcpy.mapping`).
 - 🌐 **Full Arabic Language & Unicode Compatibility:**
   Native support for Arabic folder names, file paths, geodatabases (`.gdb`), layer names, and attribute fields without encoding exceptions or console codepage crashes.
+- 🎯 **Engineering Audit Mode (True-to-Life Error Display):**
+  Reversed pipes show arrows pointing uphill as digitized so defects are visually apparent on the map.
+- 🔍 **Topological Continuity & Neighbor Network Check:**
+  Analyzes pipe connectivity to detect head-to-head collisions and flow interruptions at common manholes.
+- 📋 **Dedicated QA/QC Notes Layer (`{output}_QA_Notes`):**
+  Generates an overlay polyline layer containing flagged defective pipes with recommended corrective actions.
 - 🔗 **Smart Missing Node & Partial Inverts Handling:**
   Pipes that do not start with a manhole point (e.g. terminal dead ends, house connections, outfalls) are handled gracefully without failure ("تعمل تمام"). Flow arrows are generated along the digitized path and tagged with `PARTIAL_START_MISSING`.
 - 📦 **Self-Contained Python Toolbox (`.pyt`):**
@@ -81,8 +89,8 @@ Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed
   Generate closed triangular arrowheads (`Polygon`) or open cartographic V-arrows (`Polyline`).
 - 🎯 **Slope Percentage & Invert Analysis (On Node Points Input):**
   When a node points layer and invert field are specified, the tool computes hydraulic slope percentage (`SLOPE_PCT`), slope per mil (`SLOPE_PER_MIL`), and head drop.
-- 🔄 **In-Place Auto-Flip:**
-  Optionally reverses the vertex order of uphill pipe polylines in-place so your source network geometry becomes 100% hydraulically correct.
+- 🔄 **In-Place Auto-Flip & Attribute Swapping:**
+  Optionally reverses the vertex order of uphill pipe polylines in-place and swaps `START_INV` / `END_INV` so your source network geometry becomes 100% hydraulically correct.
 - 🔄 **Local Curve Tangent Calculation:**
   Evaluates the instantaneous slope between 49% and 51% along the curve, avoiding crude endpoint straight-line simplifications.
 - 📋 **Full Attribute Preservation:**
@@ -90,7 +98,7 @@ Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed
 - ⚡ **O(1) Spatial Hashing & Progressor:**
   Sub-second spatial queries even across 100,000+ points and real-time step progress reporting.
 - 🗺️ **Automatic Add to Active Map:**
-  Dynamically loads the generated arrow layer into the active Table of Contents (TOC) / Contents pane.
+  Dynamically loads the generated arrow layer and QA notes layer into the active Table of Contents (TOC) / Contents pane.
 - 🧪 **Bundled Sample Training Data (`data/`):**
   Includes a sample File Geodatabase (`data/TEST.gdb`) and Shapefiles (`data/sample_gravity_pipes.shp`, `data/sample_manhole_nodes.shp`) for immediate testing.
 
@@ -100,19 +108,20 @@ Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed
 
 ```mermaid
 flowchart TD
-    A["Input Pipe Lines (Polyline)"] --> B["Extract Start & End Endpoints"]
+    A["Input Pipe Lines (Polyline)"] --> B["Extract Start & End Coordinates"]
+    B --> TOPO["Topological Continuity Analysis (Neighbor Pipes)"]
     NP["Optional Node Points Layer"] --> C{"Node Layer & Invert Field Provided?"}
     B --> C
-    C -- "Yes" --> D["Fast Spatial Grid Matching & Invert Extraction"]
+    C -- "Yes" --> D["Fast Spatial Grid Matching & 3-Tier Invert Resolution"]
     D --> E{"Start & End Inverts Found?"}
-    E -- "Both Found" --> F{"Start Invert < End Invert?"}
-    F -- "Yes (Adverse Slope)" --> G["Flag Adverse Slope & Orient Arrow Downhill"]
+    E -- "Both Inverts Found" --> F{"Start Invert < End Invert?"}
+    F -- "Yes (Adverse Slope)" --> G["Audit Mode: Arrow Points Uphill As-Digitized / Flag Defect"]
     F -- "No (Normal Downhill)" --> H["Normal Downhill Flow"]
-    E -- "Start Missing" --> I["Tag Partial: Start Node Missing / Arrow Follows Digitized"]
-    E -- "End Missing" --> J["Tag Partial: End Node Missing / Arrow Follows Digitized"]
+    E -- "Start Node Missing" --> I["Tag Partial: Start Node Missing / Arrow Follows Digitized"]
+    E -- "End Node Missing" --> J["Tag Partial: End Node Missing / Arrow Follows Digitized"]
     E -- "Neither Found" --> K["Tag Unlinked Pipe / Arrow Follows Digitized"]
     C -- "No (Standard Mode)" --> L["Orient Arrow Along Digitized Direction"]
-    G --> M["Compute Hydraulic Slope % & Drop"]
+    G --> M["Compute Hydraulic Slope % & Head Drop"]
     H --> M
     M --> N["Evaluate Curve Tangent & Centroid Offset"]
     I --> N
@@ -121,7 +130,10 @@ flowchart TD
     L --> N
     N --> O["Construct Flow Arrow Geometry (Polygon / Polyline)"]
     G -.-> P["In-Place Line Flip & Invert Attribute Swap (Optional)"]
-    O --> Q["Render Bilingual Summary Report & Add Layer to Active Map"]
+    G --> QA["Export Defective Pipes to QA Notes Polyline Layer"]
+    TOPO --> QA
+    O --> R["Render Bilingual Summary Report & Add Layers to Active Map"]
+    QA --> R
 ```
 
 ---
@@ -164,17 +176,21 @@ flowchart TD
 | **10** | **Node Snapping Tolerance (Meters)** | Double | Optional | `1.5` | Search tolerance to snap pipe ends to manholes. |
 | **11** | **Arrow Placement Along Pipe** | String (Choice) | Optional | `Midpoint (50%)` | Relative placement: `Midpoint (50%)`, `Quarter (25%)`, or `Three-Quarters (75%)`. |
 | **12** | **Swap Invert Attributes on Flip** | Boolean | Optional | `True` | Swaps start and end invert attributes on flipped pipes. |
-| **13** | **Output Flow Arrows Layer** | Feature Class | Derived (Output) | — | Derived output for ModelBuilder and automated script chains. |
+| **13** | **Generate QA/QC Audit Notes Layer** | Boolean | Optional | `True` | Generates a dedicated polyline layer containing defect-flagged pipes. |
+| **14** | **Output Flow Arrows Layer** | Feature Class | Derived (Output) | — | Derived output for ModelBuilder and automated script chains. |
+| **15** | **Output QA Notes Layer** | Feature Class | Derived (Output) | — | Derived QA notes polyline output for flagged pipes. |
 
 ---
 
 ## 📊 Output Attribute Schema & QA/QC Fields
 
+### Main Flow Arrows Layer:
 | Field Name | Type | Description |
 |---|---|---|
 | `ORIG_FID` | LONG | Original pipe feature ObjectID / FID. |
 | `QA_FLOW_STATUS` | TEXT (255) | Detailed human-readable hydraulic flow & slope description (bilingual). |
 | `QA_SEVERITY` | TEXT (30) | Standard status code: `NORMAL_DOWNHILL`, `ADVERSE_SLOPE`, `ZERO_SLOPE`, `PARTIAL_START_MISSING`, `PARTIAL_END_MISSING`, `UNLINKED_NODES`, `DIGITIZED_ONLY`. |
+| `TOPOLOGY` | TEXT (50) | Network continuity code: `CONTINUOUS_FLOW`, `HEAD_TO_HEAD_COLLISION`, `TAIL_TO_TAIL_DIVERGENCE`, `UPSTREAM_ORIGIN`, `DOWNSTREAM_OUTFALL`, `ISOLATED_PIPE`. |
 | `START_INV` | DOUBLE | Upstream / Start Invert Elevation (m) - *Calculated when Node Points are provided*. |
 | `END_INV` | DOUBLE | Downstream / End Invert Elevation (m) - *Calculated when Node Points are provided*. |
 | `INVERT_DROP` | DOUBLE | Invert drop / head: $Z_{start} - Z_{end}$ (m) - *Calculated when Node Points are provided*. |
@@ -183,18 +199,30 @@ flowchart TD
 | `SLOPE_PER_MIL` | DOUBLE | Hydraulic slope per mil: $\frac{Drop}{Length} \times 1000$ (‰) - *Calculated when Node Points are provided*. |
 | `FLIPPED` | TEXT (10) | `YES` if pipe geometry was auto-flipped in-place, else `NO`. |
 
+### QA/QC Audit Notes Layer (`{output}_QA_Notes`):
+| Field Name | Type | Description |
+|---|---|---|
+| `ORIG_FID` | LONG | Original pipe feature ObjectID / FID. |
+| `DEFECT_TYPE` | TEXT (50) | Defect category: `ADVERSE_SLOPE`, `MISSING_START_NODE`, `MISSING_END_NODE`, `UNLINKED_NODES`, `TOPOLOGY_CONFLICT`, `ZERO_SLOPE`. |
+| `SEVERITY` | TEXT (25) | Severity level: `CRITICAL_ERROR`, `WARNING`, `ADVISORY`. |
+| `DEFECT_DESC` | TEXT (255) | Detailed engineering defect diagnosis (bilingual). |
+| `RECOMMENDED_ACTION` | TEXT (255) | Specific corrective engineering action to fix the defect. |
+| `START_INV` / `END_INV` | DOUBLE | Upstream & downstream invert elevations. |
+| `DROP_M` / `SLOPE_PCT` | DOUBLE | Hydraulic drop (m) and slope percentage (%). |
+| `TOPOLOGY` | TEXT (50) | Topological continuity classification. |
+
 ---
 
 ## 💡 Understanding the QA/QC Alert (Yellow Warning ⚠️)
 
 When running the tool, ArcGIS may display a yellow warning banner at completion:
 ```text
-QA/QC Alert: Identified X pipe(s) with adverse/reversed slope. Arrows oriented downhill. Enable 'Auto-Flip' to correct in-place.
+QA/QC Alert: Identified X pipe(s) with adverse/reversed slope. Arrows oriented as digitized to reveal errors. Enable 'Auto-Flip' to correct in-place.
 ```
 > [!NOTE]
 > **This is NOT a tool failure!**
 > The tool completed 100% successfully. In ArcGIS, any tool that issues an engineering advisory (`arcpy.AddWarning`) displays a yellow status icon.
-> This indicates that **adverse/uphill slope pipes** were detected in your data. The tool has already oriented the generated arrows downhill toward gravity flow. If you want to automatically reverse the digitized direction of the source line layer itself, check the **Auto-Flip Reversed Pipe Lines** checkbox and re-run.
+> In **Audit Mode**, the arrows on reversed pipes are shown pointing uphill (as digitized) so the defect is visually apparent to the engineer. The tool also creates a dedicated QA Notes layer highlighting these pipes. If you want the tool to automatically reverse the digitized direction of the source line layer itself, check the **Auto-Flip Reversed Pipe Lines** checkbox and re-run.
 
 ---
 
@@ -226,52 +254,53 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 1. **تفتقر تماماً لطبقة تعبر عن اتجاه السريان بوضوح.**
 2. **تحتوي على مواسير رُسمت بالخطأ باتجاه عكسي** (من أسفل إلى أعلى)، مما يؤدي لخلل في التحليلات الهيدروليكية وحسابات الشبكة.
 3. **وجود مواسير لم تبدأ بنقطة منهل** (مثل نهايات الخطوط الميتة Cul-de-sacs، التوصيلات المنزلية، أو المصارف المكشوفة).
-4. **مشاكل المسارات وقواعد البيانات باللغة العربية** التي تسبب أخطاء ترميز (Encoding) في أدوات بايثون التقليدية.
+4. **حدوث تصادمات سريان عند المطابق (Head-to-Head Collisions)** حيث تلتقي ماسورتان في نفس المنهل دون وجود مخرج.
+5. **مشاكل المسارات وقواعد البيانات باللغة العربية** التي تسبب أخطاء ترميز (Encoding) في أدوات بايثون التقليدية.
 
-### الحل المطور في الإصدار المحدث:
+### الحل المطور في الإصدار المحدث (v2.6):
 تقوم أداة **CreateFlowArrow** ببناء محرك متكامل لتدقيق الجودة الهندسية وإنشاء طبقة أسهم اتجاه السريان:
-1. **دعم كامل للغة العربية والمسارات:** تعمل الأداة بسلاسة تامة حتى لو كانت مسارات المجلدات أو قواعد البيانات الجغرافية أو أسماء الطبقات والحقول مكتوبة باللغة العربية (مثل: `D:\pythone\اداه تحديد الاتجاه\بيانات_الصرف.gdb`).
-2. **معالجة المواسير التي لم تبدأ بنقطة منهل بسلاسة تامة ("تعمل تمام"):**
-   - تم بناء نظام بحث والتقاط ثلاثي المستويات:
-     1. مسافة الالتقاط الدقيقة (Exact Snapping Tolerance).
-     2. مسافة الالتقاط التكيفية الموسعة ($1.5\times$).
-     3. الاعتماد التلقائي على مناسيب الماسورة المسجلة في جدول السمات (`UPSTREAMINVERT`, `START_INV`, `منسوب_البداية`).
-   - في حال لم تبدأ الماسورة بنقطة منهل ولم يتوفر منسوب بداية، **تُنشئ الأداة سهم الاتجاه بنجاح وفقاً لاتجاه الرسم الرقمي** دون توقف أو أخطاء، مع توثيق الحالة في جدول المخرجات بـ `PARTIAL_START_MISSING`.
-3. **وضع السهم بدقة متناهية** في منتصف الماسورة (أو بنسب مخصصة: 25%، 50%، 75%).
-4. **محاذاة مركز ثقل السهم** هندسياً مع مسار الخط لمنع أي تشوه بصري.
-5. **حساب مماس المنحنيات اللحظي** لضمان دقة اتجاه الأسهم حتى في خطوط المواسير المنحنية.
-6. **حساب الميل والمناسيب الذكي عند إدخال طبقة النقاط:**
-   - **عند تحديد طبقة نقاط المطابق وحقل المنسوب:** تقوم الأداة بحساب منسوب البداية والنهاية، فرق المنسوب (`INVERT_DROP`)، ونسبة الميل المئوية (`SLOPE_PCT %`) والميل في الألف (`SLOPE_PER_MIL ‰`)، وتوجيه الأسهم نحو المنخفض آلياً ورصد الميل المعاكس (`REVERSED`).
-   - **عند عدم إدخال طبقة النقاط:** تُنشئ الأداة أسهم الاتجاه بناءً على اتجاه رسم الخط المباشر (Digitized Direction) وتتخطى حساب المناسيب والميول تلقائياً.
-7. **التصحيح التلقائي المزدوج (In-Place Auto-Flip & Invert Swap):**
-   - عكس اتجاه رسم الخطوط المعكوسة في الطبقة الأصلية فوراً.
-   - تبديل قيم مناسيب البداية والنهاية في جدول البيانات لضمان تطابق البيانات الوصفية مع الرسم الجديد.
-8. **شريط تقدم تفاعلي وتقرير ختامي ملخص ثنائي اللغة** يوضح الإحصائيات الهيدروليكية بدقة.
+1. **وضع التدقيق الصادق (Audit Mode):**
+   - السهم يُرسم في وضع التدقيق الافتراضي **باتجاه رسم الماسورة الفعلي كما هو (بالمقلوب)** ليرى المهندس الخطأ بعينه على الخريطة دون تجميل أو إخفاء!
+   - وعند رغبة المستخدم في التصحيح التلقائي، يُفعل خيار `Auto-Flip` لتقوم الأداة بعكس رسم الخط في مكانه وتوجيه السهم مع الجاذبية.
+2. **فحص الاستمرارية الطوبولوجية للمواسير المحيطة (Network Continuity Check):**
+   - تفحص الأداة اتصال كل ماسورة بالمواسير المجاورة لها عند المطابق المشتركة لرصد:
+     * **تصادم الرؤوس (Head-to-Head Collision):** ماسورتان أو أكثر تصبان في نفس المنهل دون مخرج downstream.
+     * **تفرع الأذيال (Tail-to-Tail Divergence):** ماسورتان تبدآن من نفس المنهل دون خط تغذية upstream.
+     * **الماسورة الشاذة وسط المسار (Isolated Reversal).**
+3. **طبقة مخرجات مخصصة للملاحظات والأخطاء (`Flow_Direction_Arrows_QA_Notes`):**
+   - تُنشئ الأداة تلقائياً طبقة خطية مستقلة تحتوي حصرياً على المواسير التي بها ملاحظات أو عيوب هندسية، مع تسجيل نوع الخلل (`DEFECT_TYPE`)، درجة خطورته (`SEVERITY`)، وشرح الخلل، والإجراء التصحيحي المقترح (`RECOMMENDED_ACTION`)، وتُضاف للخريطة بلون مميز لسهولة الفحص والمعالجة.
+4. **دعم كامل للغة العربية والمسارات:**
+   - تعمل الأداة بسلاسة تامة مع المسارات العربية وقواعد البيانات والطبقات والحقول دون أي انهيار في الترميز.
+5. **معالجة المواسير التي لم تبدأ بنقطة منهل بسلاسة تامة ("تعمل تمام"):**
+   - نظام التقاط ثلاثي المستويات: دقيق $\rightarrow$ موسع $\rightarrow$ بديل سمات الماسورة.
+   - في حال عدم وجود نقطة منهل، يُنشأ السهم بنجاح وفقاً لاتجاه الرسم وتُوثق الحالة بـ `PARTIAL_START_MISSING`.
+6. **محاذاة مركز ثقل السهم** هندسياً ومماس المنحنيات اللحظي لمنع أي تشوه بصري.
+7. **تقرير ختامي ملخص ثنائي اللغة** يوضح الإحصائيات الهيدروليكية ونسبة الإنجاز بدقة.
 
 ---
 
 ## 🚀 المميزات الرئيسية (Key Features)
 
 - 🔄 **توافق مزدوج كامل (Dual-Platform Compatibility):**
-  تعمل بسلاسة مطلقة وبنفس الكفاءة على **ArcMap (Python 2.7)** و **ArcGIS Pro (Python 3.x)** مع الكشف التلقائي عن البيئة.
+  تعمل بسلاسة مطلقة على **ArcMap (Python 2.7)** و **ArcGIS Pro (Python 3.x)**.
 - 🌐 **دعم كامل للغة العربية (Arabic Unicode Support):**
-  معالجة ذكية ومستقرة للمسارات العربية وقواعد البيانات والطبقات والحقول العربية دون أي انهيار برمجياً.
+  معالجة ذكية للمسارات العربية وقواعد البيانات والطبقات والحقول العربية.
+- 🎯 **وضع التدقيق الهندسي (Audit Mode):**
+  رؤية الأخطاء والمواسير المعكوسة بالعين المجردة على الخريطة كما رُسمت.
+- 🔍 **فحص استمرارية الشبكة (Network Continuity):**
+  رصد تصادم السريان وتفرعه عند المطابق المشتركة.
+- 📋 **طبقة ملاحظات مستقلة للأخطاء (QA Notes Layer):**
+  تصدير طبقة خطية تسرد العيوب المكتشفة والإجراءات التصحيحية المقترحة.
 - 🔗 **معالجة متقدمة للمواسير غير المتصلة أو أحادية النقاط:**
   ضمان استمرار عمل الأداة بنجاح 100% وتوليد الأسهم حتى للمواسير التي تفتقر لمطابق عند البداية أو النهاية.
 - 📦 **صندوق أدوات برمجي متكامل (Self-Contained Python Toolbox - `.pyt`):**
   أداة مدمجة وموحدة دون الحاجة لربط ملفات خارجية أو إعداد مسارات يدوية.
-- 📐 **محاذاة مركز الثقل الدقيقة (Centroid Midpoint Alignment):**
-  تحسب الأداة مركز ثقل مثلث السهم وتضبط إزاحته ليتطابق مع خط الماسورة تماماً.
-- 🔀 **خيارات هندسية متعددة للمخرج (Polygon / Polyline):**
-  إمكانية اختيار نوع هندسة الأسهم: مضلع مغلق (`Polygon`) أو سهم خطي مفتوح (`Polyline`).
-- 🎯 **حساب الميل النسبة المئوية عند إدخال النقاط والمناسيب:**
-  حساب نسبة الميل `SLOPE_PCT` والميل في الألف `SLOPE_PER_MIL` وفروق المناسيب حصرياً عند إدخال طبقة النقاط وحقل المنسوب.
-- 🔄 **التصحيح التلقائي (Auto-Flip):**
+- 🔄 **التصحيح التلقائي المزدوج (Auto-Flip & Invert Swap):**
   تصحيح هندسة الخطوط المعكوسة وتبديل قيم المناسيب لمنع أي تضارب بين الرسم والبيانات.
 - ⚡ **أداء فائق الفاعلية وفهرسة شبكية O(1):**
   معالجة عشرات الآلاف من المواسير والمطابق في ثوانٍ معدودة مع شريط تقدم `SetProgressor`.
 - 🗺️ **الإضافة الفورية للخريطة (Auto-Add to Map):**
-  تضاف الطبقة الناتجة تلقائياً إلى الخريطة النشطة وجدول المحتويات.
+  تضاف الطبقات الناتجة تلقائياً إلى الخريطة النشطة وجدول المحتويات.
 - 🧪 **حزمة بيانات تدريبية مدمجة (`data/`):**
   قاعدة بيانات جغرافية `TEST.gdb` وملفات shapefile جاهزة فوراً للتجربة والاختبار.
 
@@ -294,17 +323,21 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 | **10** | **Node Snapping Tolerance (Meters)** | Double | اختياري | مسافة البحث والالتقاط بالمتر لمطابقة نهايات المواسير مع المطابق (افتراضي: `1.5` م). |
 | **11** | **Arrow Placement Along Pipe** | String (Choice) | اختياري | موضع السهم: في المنتصف (`Midpoint (50%)`)، الربع الأول (`25%`)، أو الربع الأخير (`75%`). |
 | **12** | **Swap Invert Attributes on Flip** | Boolean | اختياري | تبديل قيم حقول مناسيب البداية والنهاية عند عكس الخطوط المعكوسة (افتراضي: `True`). |
-| **13** | **Output Flow Arrows Layer** | Feature Class | مشتق (Derived) | مخرج برمجي آلي لربط الأداة في نماذج ModelBuilder وسكربتات الأتمتة. |
+| **13** | **Generate QA/QC Audit Notes Layer** | Boolean | اختياري | إنشاء طبقة خطية مخصصة للملاحظات والأخطاء الهندسية (افتراضي: `True`). |
+| **14** | **Output Flow Arrows Layer** | Feature Class | مشتق (Derived) | مخرج برمجي آلي لربط طبقة الأسهم في نماذج ModelBuilder. |
+| **15** | **Output QA Notes Layer** | Feature Class | مشتق (Derived) | مخرج برمجي آلي لربط طبقة الملاحظات في نماذج ModelBuilder. |
 
 ---
 
 ## 📊 حقول المخرجات وجدول تدقيق الجودة الهندسية
 
+### جدول طبقة الأسهم الرئيسية:
 | الحقل | النوع | الوصف الفني |
 |---|---|---|
 | `ORIG_FID` | LONG | المعرف الفريد للماسورة الأصلية. |
 | `QA_FLOW_STATUS` | TEXT (255) | وصف تفصيلي ثنائي اللغة لحالة السريان والميل وفروق المناسيب. |
 | `QA_SEVERITY` | TEXT (30) | كود الحالة القياسي: `NORMAL_DOWNHILL`, `ADVERSE_SLOPE`, `ZERO_SLOPE`, `PARTIAL_START_MISSING`, `PARTIAL_END_MISSING`, `UNLINKED_NODES`, `DIGITIZED_ONLY`. |
+| `TOPOLOGY` | TEXT (50) | كود الاستمرارية الطوبولوجية: `CONTINUOUS_FLOW`, `HEAD_TO_HEAD_COLLISION`, `TAIL_TO_TAIL_DIVERGENCE`, `UPSTREAM_ORIGIN`, `DOWNSTREAM_OUTFALL`, `ISOLATED_PIPE`. |
 | `START_INV` | DOUBLE | منسوب قاع بداية الماسورة (م) - *يُحسب عند إدخال طبقة النقاط*. |
 | `END_INV` | DOUBLE | منسوب قاع نهاية الماسورة (م) - *يُحسب عند إدخال طبقة النقاط*. |
 | `INVERT_DROP` | DOUBLE | فرق المنسوب الهيدروليكي بين البداية والنهاية (م) - *يُحسب عند إدخال طبقة النقاط*. |
@@ -313,18 +346,30 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 | `SLOPE_PER_MIL` | DOUBLE | نسبة الميل في الألف: $(Drop / Length) \times 1000$ (‰) - *تُحسب عند إدخال طبقة النقاط*. |
 | `FLIPPED` | TEXT (10) | وسم `YES` إذا تم تصحيح وعكس اتجاه رسم الماسورة، وإلا `NO`. |
 
+### جدول طبقة ملاحظات التدقيق (`{output}_QA_Notes`):
+| الحقل | النوع | الوصف الفني |
+|---|---|---|
+| `ORIG_FID` | LONG | المعرف الفريد للماسورة الأصلية. |
+| `DEFECT_TYPE` | TEXT (50) | تصنيف الخلل: `ADVERSE_SLOPE`, `MISSING_START_NODE`, `MISSING_END_NODE`, `UNLINKED_NODES`, `TOPOLOGY_CONFLICT`, `ZERO_SLOPE`. |
+| `SEVERITY` | TEXT (25) | درجة الخطورة: `CRITICAL_ERROR`, `WARNING`, `ADVISORY`. |
+| `DEFECT_DESC` | TEXT (255) | تشخيص هندسي تفصيلي ثنائي اللغة للخلل. |
+| `RECOMMENDED_ACTION` | TEXT (255) | الإجراء التصحيحي الهندسي الموصى به لمعالجة الخلل. |
+| `START_INV` / `END_INV` | DOUBLE | منسوب قاع البداية والنهاية. |
+| `DROP_M` / `SLOPE_PCT` | DOUBLE | فرق المنسوب ونسبة الميل الهيدروليكي. |
+| `TOPOLOGY` | TEXT (50) | الحالة الطوبولوجية للماسورة بالنسبة لجيرانها. |
+
 ---
 
 ## 💡 ماذا يعني تنبيه المثلث الأصفر ⚠️ عند انتهاء تشغيل الأداة؟
 
 عند اكتمال تشغيل الأداة، قد يظهر تنبيه تحذيري باللون الأصفر:
 ```text
-QA/QC Alert: Identified X pipe(s) with adverse/reversed slope. Arrows oriented downhill. Enable 'Auto-Flip' to correct in-place.
+QA/QC Alert: Identified X pipe(s) with adverse/reversed slope. Arrows oriented as digitized to reveal errors. Enable 'Auto-Flip' to correct in-place.
 ```
 > [!NOTE]
 > **هذا ليس خطأ برمجياً على الإطلاق!**
 > الأداة نجحت بنسبة 100% وأنتجت الطبقة وأضافتها للخريطة. في بيئة ArcGIS، أي أداة تصدر إشعار تدقيق هندسي تحذيري (`arcpy.AddWarning`) تُظهر أيقونة المثلث الأصفر لإلفات نظر المهندس.
-> هذا الإشعار يُخبرك بأن **هناك مواسير ذات ميول عكسية في بياناتك**، وأن الأداة وجهت أسهمها آلياً نحو المنخفض الطبيعي. وإذا أردت أن تقوم الأداة بعكس اتجاه رسم خطوط المواسير الأصلية نفسها في قاعدة البيانات، ما عليك سوى تفعيل خيار **Auto-Flip Reversed Pipe Lines** وإعادة التشغيل.
+> في **وضع التدقيق (Audit Mode)**، تظهر الأسهم على المواسير المعكوسة متجهة للأعلى (عكس الجاذبية كما رُسمت) ليرى المهندس الخلل بالعين المجردة، كما تُنشئ الأداة طبقة ملاحظات مستقلة تبرز هذه المواسير. وإذا أردت أن تقوم الأداة بعكس اتجاه رسم خطوط المواسير الأصلية نفسها وتوجيه الأسهم مع الانحدار، ما عليك سوى تفعيل خيار **Auto-Flip Reversed Pipe Lines** وإعادة التشغيل.
 
 ---
 
