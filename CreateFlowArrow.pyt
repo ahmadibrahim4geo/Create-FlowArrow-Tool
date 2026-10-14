@@ -11,18 +11,17 @@ Fully compatible with:
 
 Features:
 1. Dual-Platform Native Architecture: Automatic session detection for Pro and ArcMap.
-2. 3-Tier Intelligent Invert Elevation Engine:
-   - Tier 1: Manhole / Node points layer via fast spatial grid hashing.
-   - Tier 2: Auto-detection of 25+ standard civil GIS pipe attribute fields.
-   - Tier 3: Direct extraction from 3D Polyline Z vertices.
-   - Hybrid blending when partial elevation data exists.
-3. Hydraulic Engineering QA/QC Metrics:
-   - START_INV, END_INV, INVERT_DROP (m)
-   - PIPE_LEN (m), SLOPE_PCT (%), SLOPE_PER_MIL (‰)
-   - QA_FLOW_STATUS, QA_SEVERITY (NORMAL_DOWNHILL, ADVERSE_SLOPE, ZERO_SLOPE, etc.)
+2. Smart Node Invert & Hydraulic Slope Engine:
+   - Activated strictly when the user provides the Optional Node Points Layer and Invert Elevation Field.
+   - High-speed O(1) spatial grid hashing snaps pipe endpoints to node points.
+   - Calculates START_INV, END_INV, INVERT_DROP (m), PIPE_LEN (m), SLOPE_PCT (%), and SLOPE_PER_MIL (‰).
+   - Downhill arrow orientation based on actual invert elevations (Z_high -> Z_low).
+   - Identifies adverse/reversed slope pipes with automated QA/QC status tags.
+3. Standard Digitized Mode:
+   - When node points are not provided, generates flow direction arrows strictly aligned with digitized direction.
 4. Centroid Midpoint Alignment: Offsets triangle centroid so center-of-gravity coincides with line placement.
 5. Instantaneous Curve Tangents: Evaluates local derivative along conduit curve.
-6. In-Place Polyline Flipping & Attribute Swapping: Corrects adverse digitized slopes in source layer.
+6. In-Place Polyline Flipping: Corrects adverse digitized slopes in source layer when auto-flip is enabled.
 7. High-Performance Processing: O(1) spatial grid, progressor integration, O(1) set lookup.
 
 Author: Ahmad Ibrahim
@@ -36,26 +35,6 @@ import arcpy
 import math
 import os
 import time
-
-# ---------------------------------------------------------------------------
-# Industry Standard Invert Elevation Field Synonyms
-# ---------------------------------------------------------------------------
-
-START_INVERT_SYNONYMS = {
-    "ST_INV_M", "START_INV", "US_INVERT", "UPSTREAM_IL", "INV_IN",
-    "START_INVERT", "US_INV", "UP_INV", "INVERT_START", "INVERT_1",
-    "IL_START", "US_IL", "INVERT_UP", "FROM_INVERT", "FROM_IL",
-    "START_ELEV", "UPSTREAM_ELEV", "INVERT_US", "US_ELEV", "INV_START",
-    "US_INVERT_ELEV", "START_INVERT_ELEV", "INVERTIN"
-}
-
-END_INVERT_SYNONYMS = {
-    "END_INV_M", "END_INV", "DS_INVERT", "DOWNSTREAM_IL", "INV_OUT",
-    "END_INVERT", "DS_INV", "DN_INV", "INVERT_END", "INVERT_2",
-    "IL_END", "DS_IL", "INVERT_DN", "TO_INVERT", "TO_IL",
-    "END_ELEV", "DOWNSTREAM_ELEV", "INVERT_DS", "DS_ELEV", "INV_END",
-    "DS_INVERT_ELEV", "END_INVERT_ELEV", "INVERTOUT"
-}
 
 
 class Toolbox(object):
@@ -181,6 +160,7 @@ class CreateFlowArrow(object):
             direction="Input"
         )
         param9.value = False
+        param9.enabled = False
 
         # 10. Node Snapping Tolerance (Meters)
         param10 = arcpy.Parameter(
@@ -239,22 +219,26 @@ class CreateFlowArrow(object):
         # Enable/disable node invert options based on point_layer
         if parameters[7].value:
             parameters[8].enabled = True
+            parameters[9].enabled = True
             parameters[10].enabled = True
         else:
             parameters[8].enabled = False
+            parameters[9].enabled = False
             parameters[10].enabled = False
             parameters[8].value = None
+            parameters[9].value = False
 
         # Enable/disable invert swap based on auto-flip
         if parameters[9].value:
             parameters[12].enabled = True
         else:
             parameters[12].enabled = False
+            parameters[12].value = False
 
     def updateMessages(self, parameters):
         """Modify messages created by internal validation."""
         if parameters[7].value and not parameters[8].value:
-            parameters[8].setWarningMessage("Please select an Invert Elevation field from the node points layer.")
+            parameters[8].setWarningMessage("Please select an Invert Elevation field from the node points layer to enable slope analysis.")
         if parameters[4].value and parameters[4].value <= 0:
             parameters[4].setErrorMessage("Arrow Base Width must be greater than zero.")
         if parameters[5].value and parameters[5].value <= 0:
@@ -303,8 +287,7 @@ class CreateFlowArrow(object):
         desc = arcpy.Describe(input_layer)
         spatial_ref = desc.spatialReference
         sr_name = spatial_ref.name if spatial_ref else "Unknown"
-        is_has_z = getattr(desc, "hasZ", False)
-        arcpy.AddMessage("Spatial Reference: {} (Z-Aware: {})".format(sr_name, is_has_z))
+        arcpy.AddMessage("Spatial Reference: {}".format(sr_name))
 
         # Parse placement ratio
         placement_ratio = 0.5
@@ -313,7 +296,9 @@ class CreateFlowArrow(object):
         elif "75" in arrow_placement or "Three-Quarters" in arrow_placement:
             placement_ratio = 0.75
 
-        # Tier 1: Build spatial index for Node Points if provided
+        # -------------------------------------------------------------------
+        # Node Points Invert Indexing (Only when provided by user)
+        # -------------------------------------------------------------------
         point_grid = {}
         search_tol = max(0.05, search_tolerance)
         cell_size = max(search_tol, 1.0)
@@ -321,7 +306,10 @@ class CreateFlowArrow(object):
         node_point_count = 0
 
         if point_layer and invert_field and arcpy.Exists(point_layer):
-            arcpy.AddMessage("Loading node points and building spatial index from: {} (Tolerance: {}m)...".format(point_layer, search_tol))
+            arcpy.AddMessage("Node Points Layer provided: {} (Field: '{}', Snapping Tolerance: {}m)".format(
+                point_layer, invert_field, search_tol
+            ))
+            arcpy.AddMessage("Indexing node points and preparing slope percentage evaluation...")
             try:
                 with arcpy.da.SearchCursor(point_layer, ["SHAPE@X", "SHAPE@Y", invert_field], spatial_reference=spatial_ref) as pt_cur:
                     for px, py, inv_val in pt_cur:
@@ -340,7 +328,9 @@ class CreateFlowArrow(object):
                 arcpy.AddMessage("Successfully indexed {} node points with valid invert elevations.".format(node_point_count))
                 use_node_inverts = True if node_point_count > 0 else False
             except Exception as e_pt:
-                arcpy.AddWarning("Could not process node points layer: {}. Falling back to line attributes/3D geometry.".format(e_pt))
+                arcpy.AddWarning("Could not process node points layer: {}. Invert and slope calculation will be skipped.".format(e_pt))
+        else:
+            arcpy.AddMessage("Optional node points layer not specified. Tool will generate flow arrows based on digitized line direction.")
 
         def get_nearest_invert(px, py, max_dist=search_tol):
             if not point_grid:
@@ -376,7 +366,6 @@ class CreateFlowArrow(object):
         arcpy.AddField_management(output_layer, "ORIG_FID", "LONG", field_alias="Original Pipe FID")
         arcpy.AddField_management(output_layer, "QA_FLOW_STATUS", "TEXT", field_length=100, field_alias="Flow QA/QC Status")
         arcpy.AddField_management(output_layer, "QA_SEVERITY", "TEXT", field_length=30, field_alias="QA Severity Code")
-        arcpy.AddField_management(output_layer, "INVERT_SRC", "TEXT", field_length=30, field_alias="Invert Data Source")
         arcpy.AddField_management(output_layer, "START_INV", "DOUBLE", field_alias="Start Invert Elevation (m)")
         arcpy.AddField_management(output_layer, "END_INV", "DOUBLE", field_alias="End Invert Elevation (m)")
         arcpy.AddField_management(output_layer, "INVERT_DROP", "DOUBLE", field_alias="Invert Drop / Head (m)")
@@ -385,26 +374,23 @@ class CreateFlowArrow(object):
         arcpy.AddField_management(output_layer, "SLOPE_PER_MIL", "DOUBLE", field_alias="Hydraulic Slope (per mil)")
         arcpy.AddField_management(output_layer, "FLIPPED", "TEXT", field_length=10, field_alias="Flipped In-Place")
 
-        # Tier 2: Inspect fields for pipe invert elevation detection
         input_fields = [f.name for f in arcpy.ListFields(input_layer)]
         input_field_objs = {f.name: f for f in arcpy.ListFields(input_layer)}
 
+        # Detect pipe invert fields if user wants to swap attributes on flip
         st_inv_line_field = None
         end_inv_line_field = None
         for f in input_fields:
             f_upper = f.upper()
-            if f_upper in START_INVERT_SYNONYMS and not st_inv_line_field:
+            if f_upper in ("ST_INV_M", "START_INV", "US_INVERT", "UPSTREAM_IL", "INV_IN", "US_INV") and not st_inv_line_field:
                 st_inv_line_field = f
-            elif f_upper in END_INVERT_SYNONYMS and not end_inv_line_field:
+            elif f_upper in ("END_INV_M", "END_INV", "DS_INVERT", "DOWNSTREAM_IL", "INV_OUT", "DS_INV") and not end_inv_line_field:
                 end_inv_line_field = f
-
-        if st_inv_line_field and end_inv_line_field:
-            arcpy.AddMessage("Auto-detected Pipe Invert Fields: Start='{}', End='{}'".format(st_inv_line_field, end_inv_line_field))
 
         # Attributes transfer setup
         fields_to_copy = []
         managed_fields = {
-            "ORIG_FID", "QA_FLOW_STATUS", "QA_SEVERITY", "INVERT_SRC",
+            "ORIG_FID", "QA_FLOW_STATUS", "QA_SEVERITY",
             "START_INV", "END_INV", "INVERT_DROP", "PIPE_LEN",
             "SLOPE_PCT", "SLOPE_PER_MIL", "FLIPPED"
         }
@@ -430,24 +416,17 @@ class CreateFlowArrow(object):
 
         search_fields = ["SHAPE@", "OID@"] + fields_to_copy
         insert_fields = [
-            "SHAPE@", "ORIG_FID", "QA_FLOW_STATUS", "QA_SEVERITY", "INVERT_SRC",
+            "SHAPE@", "ORIG_FID", "QA_FLOW_STATUS", "QA_SEVERITY",
             "START_INV", "END_INV", "INVERT_DROP", "PIPE_LEN",
             "SLOPE_PCT", "SLOPE_PER_MIL", "FLIPPED"
         ] + fields_to_copy
 
-        st_attr_idx = fields_to_copy.index(st_inv_line_field) if st_inv_line_field and st_inv_line_field in fields_to_copy else None
-        end_attr_idx = fields_to_copy.index(end_inv_line_field) if end_inv_line_field and end_inv_line_field in fields_to_copy else None
-
-        # Statistics
+        # Statistics counters
         total_pipes = 0
         normal_count = 0
         reversed_count = 0
         flat_count = 0
         partial_count = 0
-        digitized_only_count = 0
-        src_node_count = 0
-        src_attr_count = 0
-        src_3d_count = 0
         reversed_pipe_oids = []
 
         try:
@@ -498,96 +477,53 @@ class CreateFlowArrow(object):
                     digitized_angle = math.atan2(dy, dx)
 
                     # -------------------------------------------------------
-                    # 3-Tier Intelligent Invert Evaluation
+                    # Invert Evaluation & Hydraulic Slope Calculation:
+                    # Performed strictly when the user provides the optional
+                    # Node Points Layer and selects the Invert Elevation Field.
                     # -------------------------------------------------------
                     st_inv = None
                     end_inv = None
-                    inv_src = "DIGITIZED_ONLY"
-
-                    # Tier 1: Connected Node Points
-                    if use_node_inverts:
-                        st_inv = get_nearest_invert(start_point.X, start_point.Y)
-                        end_inv = get_nearest_invert(end_point.X, end_point.Y)
-                        if st_inv is not None and end_inv is not None:
-                            inv_src = "NODES_LAYER"
-                        elif st_inv is not None or end_inv is not None:
-                            inv_src = "HYBRID_NODES"
-
-                    # Tier 2: Pipe Line Attributes
-                    if (st_inv is None or end_inv is None) and (st_attr_idx is not None and end_attr_idx is not None):
-                        try:
-                            if st_inv is None and attr_values[st_attr_idx] is not None:
-                                st_inv = float(attr_values[st_attr_idx])
-                            if end_inv is None and attr_values[end_attr_idx] is not None:
-                                end_inv = float(attr_values[end_attr_idx])
-                            if inv_src == "DIGITIZED_ONLY" and st_inv is not None and end_inv is not None:
-                                inv_src = "PIPE_ATTRIBUTES"
-                        except (ValueError, TypeError):
-                            pass
-
-                    # Tier 3: 3D Geometry Vertices
-                    if (st_inv is None or end_inv is None) and is_has_z:
-                        try:
-                            z_start = getattr(start_point, "Z", None)
-                            z_end = getattr(end_point, "Z", None)
-                            if z_start is not None and not math.isnan(z_start) and (z_start > -9000):
-                                if st_inv is None:
-                                    st_inv = float(z_start)
-                            if z_end is not None and not math.isnan(z_end) and (z_end > -9000):
-                                if end_inv is None:
-                                    end_inv = float(z_end)
-                            if inv_src == "DIGITIZED_ONLY" and st_inv is not None and end_inv is not None:
-                                inv_src = "3D_GEOMETRY"
-                        except Exception:
-                            pass
-
-                    if inv_src == "NODES_LAYER":
-                        src_node_count += 1
-                    elif inv_src == "PIPE_ATTRIBUTES":
-                        src_attr_count += 1
-                    elif inv_src == "3D_GEOMETRY":
-                        src_3d_count += 1
-
-                    # Hydraulic evaluation
                     inv_drop = None
                     slope_pct = None
                     slope_per_mil = None
                     is_reversed = False
-                    qa_severity = "UNKNOWN"
-                    qa_status = "Normal Flow (Digitized Direction - No Inverts)"
+                    qa_severity = "DIGITIZED_ONLY"
+                    qa_status = "Normal Flow (Digitized Direction)"
 
-                    if st_inv is not None and end_inv is not None:
-                        st_inv = round(st_inv, 4)
-                        end_inv = round(end_inv, 4)
-                        inv_drop = round(st_inv - end_inv, 4)
-                        if pipe_len > 0:
-                            slope_pct = round((inv_drop / pipe_len) * 100.0, 4)
-                            slope_per_mil = round((inv_drop / pipe_len) * 1000.0, 3)
+                    if use_node_inverts:
+                        st_inv = get_nearest_invert(start_point.X, start_point.Y)
+                        end_inv = get_nearest_invert(end_point.X, end_point.Y)
 
-                        if st_inv > end_inv:
-                            qa_severity = "NORMAL_DOWNHILL"
-                            qa_status = "Normal Flow (Downhill: Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
-                            normal_count += 1
-                        elif st_inv < end_inv:
-                            is_reversed = True
-                            qa_severity = "ADVERSE_SLOPE"
-                            qa_status = "REVERSED - Flow Corrected by Inverts (Adverse Drop={:+.3f}m)".format(inv_drop)
-                            reversed_count += 1
-                            reversed_pipe_oids.append(orig_fid)
-                        else:
-                            qa_severity = "ZERO_SLOPE"
-                            qa_status = "Flat Pipe (Zero Invert Drop / Horizontal conduit)"
-                            flat_count += 1
-                    elif st_inv is not None or end_inv is not None:
-                        qa_severity = "PARTIAL_ELEVATION"
-                        qa_status = "Partial Invert (Single Node/Elevation Found)"
-                        partial_count += 1
-                    else:
-                        qa_severity = "DIGITIZED_ONLY"
-                        qa_status = "Digitized Direction (No Invert Elevations Found)"
-                        digitized_only_count += 1
+                        if st_inv is not None and end_inv is not None:
+                            st_inv = round(st_inv, 4)
+                            end_inv = round(end_inv, 4)
+                            inv_drop = round(st_inv - end_inv, 4)
 
-                    # Set arrow angle: If reversed, flip 180 degrees to point downhill
+                            # Slope percentage & per-mil strictly computed from node inverts
+                            if pipe_len > 0:
+                                slope_pct = round((inv_drop / pipe_len) * 100.0, 4)
+                                slope_per_mil = round((inv_drop / pipe_len) * 1000.0, 3)
+
+                            if st_inv > end_inv:
+                                qa_severity = "NORMAL_DOWNHILL"
+                                qa_status = "Normal Flow (Downhill: Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
+                                normal_count += 1
+                            elif st_inv < end_inv:
+                                is_reversed = True
+                                qa_severity = "ADVERSE_SLOPE"
+                                qa_status = "REVERSED - Flow Corrected by Inverts (Adverse Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
+                                reversed_count += 1
+                                reversed_pipe_oids.append(orig_fid)
+                            else:
+                                qa_severity = "ZERO_SLOPE"
+                                qa_status = "Flat Pipe (Zero Invert Drop / Slope=0.00%)"
+                                flat_count += 1
+                        elif st_inv is not None or end_inv is not None:
+                            qa_severity = "PARTIAL_ELEVATION"
+                            qa_status = "Partial Invert (Single Node Found)"
+                            partial_count += 1
+
+                    # Set arrow angle: If reversed via node inverts, flip 180 degrees to point downhill
                     if is_reversed:
                         arrow_angle = digitized_angle + math.pi
                         if arrow_angle > math.pi:
@@ -633,7 +569,7 @@ class CreateFlowArrow(object):
 
                     flipped_flag = "YES" if (flip_reversed_pipes and is_reversed) else "NO"
                     insert_row = [
-                        arrow_geom, orig_fid, qa_status, qa_severity, inv_src,
+                        arrow_geom, orig_fid, qa_status, qa_severity,
                         st_inv, end_inv, inv_drop, pipe_len,
                         slope_pct, slope_per_mil, flipped_flag
                     ] + attr_values
@@ -644,7 +580,7 @@ class CreateFlowArrow(object):
         except Exception:
             pass
 
-        # In-Place Pipe Line Geometry Flipping & Attribute Swapping
+        # In-Place Pipe Line Geometry Flipping (Only when node inverts reversed)
         flipped_count = 0
         if flip_reversed_pipes and reversed_pipe_oids:
             reversed_oids_set = set(reversed_pipe_oids)
@@ -671,7 +607,7 @@ class CreateFlowArrow(object):
                                     parts.add(rev_pts)
                                 up_row[1] = arcpy.Polyline(parts, spatial_ref)
 
-                                # Swap start and end invert attributes on the pipe feature
+                                # Swap start and end invert attributes on the pipe feature if available
                                 if s_up_idx is not None and e_up_idx is not None:
                                     old_st = up_row[s_up_idx]
                                     old_end = up_row[e_up_idx]
@@ -684,46 +620,60 @@ class CreateFlowArrow(object):
             except Exception as ex_flip:
                 arcpy.AddWarning("Could not flip pipe lines in-place (layer may be locked or read-only): {}".format(ex_flip))
 
-        # Professional Engineering Summary Output
+        # Execution Summary Output
         elapsed = round(time.time() - t_start, 2)
-        pct_norm = (normal_count / total_pipes * 100.0) if total_pipes else 0.0
-        pct_rev = (reversed_count / total_pipes * 100.0) if total_pipes else 0.0
-        pct_flat = (flat_count / total_pipes * 100.0) if total_pipes else 0.0
 
-        summary_banner = """
+        if use_node_inverts:
+            pct_norm = (normal_count / total_pipes * 100.0) if total_pipes else 0.0
+            pct_rev = (reversed_count / total_pipes * 100.0) if total_pipes else 0.0
+            pct_flat = (flat_count / total_pipes * 100.0) if total_pipes else 0.0
+
+            summary_banner = """
 ======================================================================
   🌊 CREATE FLOW ARROW & QA/QC AUDIT ENGINE - SUMMARY
 ======================================================================
+  Mode:                          Smart Node Invert Alignment & Slope QA/QC
+  Node Points Layer:             {} (Field: '{}')
   Total Pipes Analyzed:          {}
   - Normal Downhill Flow:        {} ({:.1f}%)
   - Adverse Slope (Reversed):    {} ({:.1f}%)
   - Flat Pipes (Zero Drop):      {} ({:.1f}%)
   - Partial Inverts / Unlinked:  {}
-  - Digitized Direction Only:    {}
   ------------------------------------------------------------------
-  Invert Elevation Sources:
-  - Node Manhole Points:         {}
-  - Pipe Attribute Fields:       {}
-  - 3D Geometry Vertices:        {}
-  ------------------------------------------------------------------
+  Hydraulic Slopes Calculated:   YES (SLOPE_PCT & SLOPE_PER_MIL)
   In-Place Auto-Flip Executed:   {} pipe(s) corrected
   Output Feature Class:          {}
   Elapsed Execution Time:        {} seconds
 ======================================================================
 """.format(
-            total_pipes,
-            normal_count, pct_norm,
-            reversed_count, pct_rev,
-            flat_count, pct_flat,
-            partial_count,
-            digitized_only_count,
-            src_node_count,
-            src_attr_count,
-            src_3d_count,
-            flipped_count,
-            output_layer,
-            elapsed
-        )
+                point_layer, invert_field,
+                total_pipes,
+                normal_count, pct_norm,
+                reversed_count, pct_rev,
+                flat_count, pct_flat,
+                partial_count,
+                flipped_count,
+                output_layer,
+                elapsed
+            )
+        else:
+            summary_banner = """
+======================================================================
+  🌊 CREATE FLOW ARROW - SUMMARY
+======================================================================
+  Mode:                          Standard Flow Arrows (Digitized Direction)
+  Node Points Layer:             Not Specified (Slope & Invert Analysis Skipped)
+  Total Pipes Processed:         {}
+  Flow Arrows Generated:         {} ({})
+  Output Feature Class:          {}
+  Elapsed Execution Time:        {} seconds
+======================================================================
+""".format(
+                total_pipes,
+                total_pipes, fc_geom_type,
+                output_layer,
+                elapsed
+            )
 
         arcpy.AddMessage(summary_banner)
         if reversed_count > 0 and not flip_reversed_pipes:

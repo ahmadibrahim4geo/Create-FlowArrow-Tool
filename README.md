@@ -31,21 +31,19 @@ Fluid conveyance relies strictly on topographical gravity gradient—moving natu
 Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed field CAD lines frequently suffer from:
 1. **No visual flow arrow symbology**, making manual flow direction verification exhausting across thousands of pipes.
 2. **Reversed digitizing direction errors** (pipes drawn uphill, from downstream to upstream), which breaks hydraulic network traces, disconnects watershed routing, and corrupts network calculations.
-3. **Inconsistent elevation field formats** across different engineering software (Civil 3D, InfoWorks, MicroStation, WaterGEMS).
 
 ### The Solution:
 **CreateFlowArrow** is an advanced, high-performance standalone ArcGIS Python Toolbox (`.pyt`) that:
 1. Generates geometric flow direction arrows (**Polygon** triangles or **Polyline** open V-arrows) aligned precisely at each pipe's mathematical **midpoint** (or custom placement ratio: 25%, 50%, 75%).
 2. Aligns arrow center-of-gravity (centroid) with the pipe line to eliminate visual distortion.
 3. Calculates instantaneous **tangents along curves** to guarantee smooth flow orientation even on curved conduit alignments.
-4. **3-Tier Intelligent Invert Elevation Hierarchy:**
-   - **Tier 1:** High-speed spatial grid hashing snaps pipe ends to manhole/node points ($O(1)$ lookup).
-   - **Tier 2:** Automatic detection of 25+ civil GIS attribute field naming standards (e.g. `US_INV`, `DS_INV`, `START_INV`, `END_INV`, `UPSTREAM_IL`).
-   - **Tier 3:** Direct elevation extraction from 3D Polyline Z vertices ($Z_{start}$ vs $Z_{end}$).
-   - **Hybrid Sourcing:** Gracefully handles dead-ends and outfalls by blending node points with pipe attributes.
-5. **Full Hydraulic QA/QC Engineering Metrics:**
-   - Populates `START_INV`, `END_INV`, `INVERT_DROP`, `PIPE_LEN`, `SLOPE_PCT` (%), and `SLOPE_PER_MIL` (‰).
-   - Categorizes flow into standard severity codes: `NORMAL_DOWNHILL`, `ADVERSE_SLOPE`, `ZERO_SLOPE`, `PARTIAL_ELEVATION`, and `DIGITIZED_ONLY`.
+4. **Smart Node Invert & Slope Percentage Engine:**
+   - Activated strictly when the user provides the **Optional Node Points Layer** and selects the **Node Invert Elevation Field**.
+   - Uses high-speed spatial grid hashing ($O(1)$) to snap pipe endpoints to node points.
+   - Computes **Start Invert**, **End Invert**, **Invert Drop / Head**, **Pipe Length**, **Hydraulic Slope Percentage (`SLOPE_PCT %`)**, and **Slope Per-Mil (`SLOPE_PER_MIL ‰`)**.
+   - Directs flow arrows downhill from higher invert to lower invert and flags adverse slopes (`REVERSED`).
+5. **Standard Digitized Direction Mode:**
+   - When node points are not provided, flow direction arrows are generated purely according to the pipe's digitized line direction.
 6. **In-Place Auto-Flip & Attribute Swapping:**
    - Reverses adverse/uphill pipe polylines in-place directly in the source layer (including multi-part geometries).
    - Optionally swaps `START_INV` and `END_INV` attribute values on flipped pipes to guarantee 100% attribute consistency.
@@ -71,12 +69,10 @@ Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed
   Calculates the exact triangle centroid $(X_c, Y_c)$ and applies an analytical offset so the arrow's center of gravity coincides flawlessly with the line placement point.
 - 🔀 **Flexible Geometry Outputs (Polygon vs. Polyline):**
   Generate closed triangular arrowheads (`Polygon`) or open cartographic V-arrows (`Polyline`).
-- 🧠 **3-Tier Invert Elevation Engine:**
-  Intelligently sources elevations from (1) Node points layer, (2) Pipe line attributes, or (3) 3D geometry vertices.
-- 📐 **Hydraulic Engineering QA/QC Fields:**
-  Calculates pipe drop, length, hydraulic slope percentage (`SLOPE_PCT`), and slope per mil (`SLOPE_PER_MIL`).
-- 🔄 **In-Place Auto-Flip & Invert Swap:**
-  Optionally reverses the vertex order of uphill pipe polylines in-place and swaps invert attributes so your source network geometry and tables become 100% hydraulically correct.
+- 🎯 **Slope Percentage & Invert Analysis (On Node Points Input):**
+  When a node points layer and invert field are specified, the tool computes hydraulic slope percentage (`SLOPE_PCT`), slope per mil (`SLOPE_PER_MIL`), and head drop.
+- 🔄 **In-Place Auto-Flip:**
+  Optionally reverses the vertex order of uphill pipe polylines in-place so your source network geometry becomes 100% hydraulically correct.
 - 🔄 **Local Curve Tangent Calculation:**
   Evaluates the instantaneous slope between 49% and 51% along the curve, avoiding crude endpoint straight-line simplifications.
 - 📋 **Full Attribute Preservation:**
@@ -95,23 +91,20 @@ Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed
 ```mermaid
 flowchart TD
     A["Input Pipe Lines (Polyline)"] --> B["Extract Start & End Endpoints"]
-    NP["Node Points Layer (Optional)"] -.-> C1["Tier 1: Spatial Grid Invert Matching"]
-    LA["Pipe Line Attributes"] -.-> C2["Tier 2: 25+ Standard Field Synonyms"]
-    ZG["3D Geometry (Z-Aware)"] -.-> C3["Tier 3: Native Vertex Z Coordinates"]
-    B --> C["Intelligent 3-Tier Invert Hierarchy"]
-    C1 --> C
-    C2 --> C
-    C3 --> C
-    C --> D{"Elevation Available?"}
-    D -- "Start Invert < End Invert" --> E["Flag Adverse Slope & Orient Arrow Downhill"]
-    D -- "Start Invert >= End Invert" --> F["Normal Downhill Flow"]
-    D -- "No Inverts Found" --> G["Orient Arrow Along Digitized Direction"]
-    E --> H["Calculate Hydraulic Drop & Slope %"]
-    F --> H
-    H --> I["Evaluate Instantaneous Curve Tangent & Centroid Offset"]
-    I --> J["Construct Flow Arrow Geometry (Polygon / Polyline)"]
-    E -.-> K["In-Place Line Flip & Invert Attribute Swap (Optional)"]
-    J --> L["Render Summary Report & Add Layer to Active Map"]
+    NP["Optional Node Points Layer"] --> C{"Node Layer & Invert Field Provided?"}
+    B --> C
+    C -- "Yes" --> D["Fast Spatial Grid Matching & Invert Extraction"]
+    D --> E{"Start Invert < End Invert?"}
+    E -- "Yes (Adverse Slope)" --> F["Flag Adverse Slope & Orient Arrow Downhill"]
+    E -- "No (Normal Downhill)" --> G["Normal Downhill Flow"]
+    F --> H["Compute Hydraulic Slope % & Drop"]
+    G --> H
+    C -- "No (Standard Mode)" --> I["Orient Arrow Along Digitized Direction"]
+    H --> J["Evaluate Instantaneous Curve Tangent & Centroid Offset"]
+    I --> J
+    J --> K["Construct Flow Arrow Geometry (Polygon / Polyline)"]
+    F -.-> L["In-Place Line Flip & Invert Attribute Swap (Optional)"]
+    K --> M["Render Summary Report & Add Layer to Active Map"]
 ```
 
 ---
@@ -149,7 +142,7 @@ flowchart TD
 | **5** | **Arrow Height / Length (Meters)** | Double | Required | `5.0` | Length of the arrow from base to tip in map units (meters). |
 | **6** | **Transfer Pipe Attributes** | Boolean | Optional | `True` | Copy all original pipe attributes to output arrows with `ORIG_FID`. |
 | **7** | **Optional Node Points Layer** | Feature Layer (Point) | Optional | — | Manhole/junction points layer snapped to pipe endpoints. |
-| **8** | **Node Invert Elevation Field** | Field (Numeric) | Optional | — | Invert elevation field (enables flow verification: Higher $Z$ to Lower $Z$). |
+| **8** | **Node Invert Elevation Field** | Field (Numeric) | Optional | — | Invert elevation field (enables slope percentage & invert calculation). |
 | **9** | **Auto-Flip Reversed Pipe Lines** | Boolean | Optional | `False` | Automatically flips reversed source pipe polylines in-place to follow gravity. |
 | **10** | **Node Snapping Tolerance (Meters)** | Double | Optional | `1.5` | Search radius for matching pipe endpoints with node manhole points. |
 | **11** | **Arrow Placement Along Pipe** | String (Choice) | Optional | `Midpoint (50%)` | Position along pipe: `Midpoint (50%)`, `Quarter (25%)`, or `Three-Quarters (75%)`. |
@@ -165,13 +158,12 @@ flowchart TD
 | `ORIG_FID` | LONG | Original pipe feature ObjectID / FID. |
 | `QA_FLOW_STATUS` | TEXT (100) | Detailed human-readable hydraulic flow & slope description. |
 | `QA_SEVERITY` | TEXT (30) | Standard status: `NORMAL_DOWNHILL`, `ADVERSE_SLOPE`, `ZERO_SLOPE`, `PARTIAL_ELEVATION`, `DIGITIZED_ONLY`. |
-| `INVERT_SRC` | TEXT (30) | Elevation source: `NODES_LAYER`, `PIPE_ATTRIBUTES`, `3D_GEOMETRY`, `HYBRID`, `DIGITIZED_ONLY`. |
-| `START_INV` | DOUBLE | Upstream / Start Invert Elevation (m). |
-| `END_INV` | DOUBLE | Downstream / End Invert Elevation (m). |
-| `INVERT_DROP` | DOUBLE | Invert drop / head: $Z_{start} - Z_{end}$ (m). |
+| `START_INV` | DOUBLE | Upstream / Start Invert Elevation (m) - *Calculated when Node Points are provided*. |
+| `END_INV` | DOUBLE | Downstream / End Invert Elevation (m) - *Calculated when Node Points are provided*. |
+| `INVERT_DROP` | DOUBLE | Invert drop / head: $Z_{start} - Z_{end}$ (m) - *Calculated when Node Points are provided*. |
 | `PIPE_LEN` | DOUBLE | Pipe geometric length (m). |
-| `SLOPE_PCT` | DOUBLE | Hydraulic slope percentage: $\frac{Drop}{Length} \times 100$ (%). |
-| `SLOPE_PER_MIL` | DOUBLE | Hydraulic slope per mil: $\frac{Drop}{Length} \times 1000$ (‰). |
+| `SLOPE_PCT` | DOUBLE | Hydraulic slope percentage: $\frac{Drop}{Length} \times 100$ (%) - *Calculated when Node Points are provided*. |
+| `SLOPE_PER_MIL` | DOUBLE | Hydraulic slope per mil: $\frac{Drop}{Length} \times 1000$ (‰) - *Calculated when Node Points are provided*. |
 | `FLIPPED` | TEXT (10) | `YES` if pipe geometry was auto-flipped in-place, else `NO`. |
 
 ---
@@ -203,26 +195,19 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 الكثير من البيانات الموردة من الرفع المساحي أو المخططات المستوردة من أوتوكاد (CAD Drawings):
 1. **تفتقر تماماً لطبقة تعبر عن اتجاه السريان بوضوح.**
 2. **تحتوي على مواسير رُسمت بالخطأ باتجاه عكسي** (من أسفل إلى أعلى)، مما يؤدي لخلل في التحليلات الهيدروليكية وحسابات الشبكة.
-3. **تعدد مسميات حقول المناسيب** بين البرامج الهندسية المختلفة (Civil 3D, InfoWorks, WaterGEMS, MicroStation).
 
-### الحل القوي والشامل:
-تقوم أداة **CreateFlowArrow** المطورة ببناء محرك متكامل لتدقيق الجودة الهندسية وإنشاء طبقة أسهم اتجاه السريان:
+### الحل المطور:
+تقوم أداة **CreateFlowArrow** ببناء محرك متكامل لتدقيق الجودة الهندسية وإنشاء طبقة أسهم اتجاه السريان:
 1. **وضع السهم بدقة متناهية** في منتصف الماسورة (أو بنسب مخصصة: 25%، 50%، 75%).
 2. **محاذاة مركز ثقل السهم** هندسياً مع مسار الخط لمنع أي تشوه بصري.
 3. **حساب مماس المنحنيات اللحظي** لضمان دقة اتجاه الأسهم حتى في خطوط المواسير المنحنية.
-4. **محرك مناسيب ذكي ثلاثي المستويات (3-Tier Invert Engine):**
-   - **المستوى الأول:** الربط المكاني السريع بنقاط المطابق بمصفوفة فهرسة شبكية فائقة السرعة $O(1)$.
-   - **المستوى الثاني:** كشف تلقائي لأكثر من 25 تسمية قياسية لحقول المناسيب داخل جدول خطوط المواسير.
-   - **المستوى الثالث:** استخراج المناسيب مباشرة من إحداثيات Z للمواسير ثلاثية الأبعاد (3D Polylines).
-   - **الربط الهجين:** استكمال المناسيب للمواسير ذات الطرف المفتوح (Outfall) أو الخطوط الطرفية تلقائياً.
-5. **حساب المؤشرات الهيدروليكية الكاملة:**
-   - فرق المنسوب (`INVERT_DROP`)، طول الماسورة (`PIPE_LEN`).
-   - نسبة الميل المئوي (`SLOPE_PCT %`)، والميل في الألف (`SLOPE_PER_MIL ‰`).
-   - ترميز وتصنيف الحالات: `NORMAL_DOWNHILL`، `ADVERSE_SLOPE`، `ZERO_SLOPE`، `PARTIAL_ELEVATION`.
-6. **التصحيح التلقائي المزدوج (In-Place Auto-Flip & Invert Swap):**
-   - عكس اتجاه رسم الخطوط المعكوسة في الطبقة الأصلية فوراً (بما فيها الخطوط متعددة الأجزاء Multi-part).
-   - تبديل قيم مناسيب البداية والنهاية في جدول البيانات لضمان تطابق البيانات الوصفية مع الرسم الجديد 100%!
-7. **شريط تقدم تفاعلي وتقرير ختامي ملخص** يوضح الإحصائيات الهيدروليكية وزمن المعالجة بدقة.
+4. **حساب الميل والمناسيب الذكي عند إدخال طبقة النقاط:**
+   - **عند تحديد طبقة نقاط المطابق وحقل المنسوب:** تقوم الأداة بحساب منسوب البداية والنهاية، فرق المنسوب (`INVERT_DROP`)، ونسبة الميل المئوية (`SLOPE_PCT %`) والميل في الألف (`SLOPE_PER_MIL ‰`)، وتوجيه الأسهم نحو المنخفض آلياً ورصد الميل المعاكس (`REVERSED`).
+   - **عند عدم إدخال طبقة النقاط:** تُنشئ الأداة أسهم الاتجاه بناءً على اتجاه رسم الخط المباشر (Digitized Direction) وتتخطى حساب المناسيب والميول تلقائياً.
+5. **التصحيح التلقائي المزدوج (In-Place Auto-Flip & Invert Swap):**
+   - عكس اتجاه رسم الخطوط المعكوسة في الطبقة الأصلية فوراً.
+   - تبديل قيم مناسيب البداية والنهاية في جدول البيانات لضمان تطابق البيانات الوصفية مع الرسم الجديد.
+6. **شريط تقدم تفاعلي وتقرير ختامي ملخص** يوضح الإحصائيات الهيدروليكية وزمن المعالجة بدقة.
 
 ---
 
@@ -236,11 +221,9 @@ The repository includes a ready-to-use dataset in the `data/` directory:
   تحسب الأداة مركز ثقل مثلث السهم وتضبط إزاحته ليتطابق مع خط الماسورة تماماً.
 - 🔀 **خيارات هندسية متعددة للمخرج (Polygon / Polyline):**
   إمكانية اختيار نوع هندسة الأسهم: مضلع مغلق (`Polygon`) أو سهم خطي مفتوح (`Polyline`).
-- 🧠 **محرك مناسيب ثلاثي المستويات (3-Tier Inverts):**
-  استخراج المناسيب تلقائياً من النقاط أو جدول السمات أو إحداثيات 3D Geometry.
-- 📊 **حساب الميل ونسبة الانحدار الهيدروليكي:**
-  حقول مخصصة لحساب نسبة الميل `SLOPE_PCT` والميل في الألف `SLOPE_PER_MIL`.
-- 🔄 **التصحيح التلقائي وتبديل المناسيب (Auto-Flip & Invert Swap):**
+- 🎯 **حساب الميل النسبة المئوية عند إدخال النقاط والمناسيب:**
+  حساب نسبة الميل `SLOPE_PCT` والميل في الألف `SLOPE_PER_MIL` وفروق المناسيب حصرياً عند إدخال طبقة النقاط وحقل المنسوب.
+- 🔄 **التصحيح التلقائي (Auto-Flip):**
   تصحيح هندسة الخطوط المعكوسة وتبديل قيم المناسيب لمنع أي تضارب بين الرسم والبيانات.
 - ⚡ **أداء فائق الفاعلية وفهرسة شبكية O(1):**
   معالجة عشرات الآلاف من المواسير والمطابق في ثوانٍ معدودة مع شريط تقدم `SetProgressor`.
@@ -262,8 +245,8 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 | **4** | **Arrow Base Width (Meters)** | Double | إجباري | عرض قاعدة مثلث السهم بالمتر (افتراضي: `2.0` م). |
 | **5** | **Arrow Height / Length (Meters)** | Double | إجباري | ارتفاع / طول السهم بالمتر (افتراضي: `5.0` م). |
 | **6** | **Transfer Pipe Attributes** | Boolean | اختياري | نقل سمات وبيانات المواسير الأصلية إلى طبقة الأسهم (افتراضي: `True`). |
-| **7** | **Optional Node Points Layer** | Feature Layer (Point) | اختياري | طبقة نقاط المطابق أو غرف التفتيش الملحقة بنهايات المواسير. |
-| **8** | **Node Invert Elevation Field** | Field (Numeric) | اختياري | حقل منسوب القاع بالنقاط لتوجيه السهم من الأعلى للمنخفض. |
+| **7** | **Optional Node Points Layer** | Feature Layer (Point) | اختياري | طبقة نقاط المطابق الملحقة بنهايات المواسير (تُفعّل حساب المناسيب والميول). |
+| **8** | **Node Invert Elevation Field** | Field (Numeric) | اختياري | حقل منسوب القاع بالنقاط لحساب الميل المئوي وتوجيه السهم وفق الجاذبية. |
 | **9** | **Auto-Flip Reversed Pipe Lines** | Boolean | اختياري | عكس اتجاه رسم المواسير المعكوسة هندسياً بالطبقة الأصلية فوراً. |
 | **10** | **Node Snapping Tolerance (Meters)** | Double | اختياري | مسافة البحث والالتقاط بالمتر لمطابقة نهايات المواسير مع المطابق (افتراضي: `1.5` م). |
 | **11** | **Arrow Placement Along Pipe** | String (Choice) | اختياري | موضع السهم: في المنتصف (`Midpoint (50%)`)، الربع الأول (`25%`)، أو الربع الأخير (`75%`). |
@@ -278,14 +261,13 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 |---|---|---|
 | `ORIG_FID` | LONG | المعرف الفريد للماسورة الأصلية. |
 | `QA_FLOW_STATUS` | TEXT (100) | وصف حالة السريان والميل الهيدروليكي وفروق المناسيب. |
-| `QA_SEVERITY` | TEXT (30) | كود الحالة القياسي: `NORMAL_DOWNHILL`, `ADVERSE_SLOPE`, `ZERO_SLOPE`, `PARTIAL_ELEVATION`. |
-| `INVERT_SRC` | TEXT (30) | مصدر بيانات المناسيب: `NODES_LAYER`, `PIPE_ATTRIBUTES`, `3D_GEOMETRY`, `HYBRID`. |
-| `START_INV` | DOUBLE | منسوب قاع بداية الماسورة (م). |
-| `END_INV` | DOUBLE | منسوب قاع نهاية الماسورة (م). |
-| `INVERT_DROP` | DOUBLE | فرق المنسوب الهيدروليكي بين البداية والنهاية (م). |
+| `QA_SEVERITY` | TEXT (30) | كود الحالة القياسي: `NORMAL_DOWNHILL`, `ADVERSE_SLOPE`, `ZERO_SLOPE`, `PARTIAL_ELEVATION`, `DIGITIZED_ONLY`. |
+| `START_INV` | DOUBLE | منسوب قاع بداية الماسورة (م) - *يُحسب عند إدخال طبقة النقاط*. |
+| `END_INV` | DOUBLE | منسوب قاع نهاية الماسورة (م) - *يُحسب عند إدخال طبقة النقاط*. |
+| `INVERT_DROP` | DOUBLE | فرق المنسوب الهيدروليكي بين البداية والنهاية (م) - *يُحسب عند إدخال طبقة النقاط*. |
 | `PIPE_LEN` | DOUBLE | طول الماسورة الحقيقي (م). |
-| `SLOPE_PCT` | DOUBLE | نسبة الميل الهيدروليكي المئوية: $(Drop / Length) \times 100$ (%). |
-| `SLOPE_PER_MIL` | DOUBLE | نسبة الميل في الألف: $(Drop / Length) \times 1000$ (‰). |
+| `SLOPE_PCT` | DOUBLE | نسبة الميل الهيدروليكي المئوية: $(Drop / Length) \times 100$ (%) - *تُحسب عند إدخال طبقة النقاط*. |
+| `SLOPE_PER_MIL` | DOUBLE | نسبة الميل في الألف: $(Drop / Length) \times 1000$ (‰) - *تُحسب عند إدخال طبقة النقاط*. |
 | `FLIPPED` | TEXT (10) | وسم `YES` إذا تم تصحيح وعكس اتجاه رسم الماسورة، وإلا `NO`. |
 
 ---
