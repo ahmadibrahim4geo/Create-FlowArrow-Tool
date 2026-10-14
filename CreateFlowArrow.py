@@ -657,14 +657,14 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                             else:
                                 qa_status = u"REVERSED / ADVERSE SLOPE (Audit Mode): Arrow reflects actual uphill digitization (Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
 
-                            # Register defect for QA Notes
+                            # Register defect for QA Notes (Reversed in Invert Determination)
                             flagged_defects.append({
                                 "geom": line,
                                 "orig_fid": orig_fid,
-                                "defect_type": "ADVERSE_SLOPE",
+                                "defect_type": "REVERSED_INVERT_SLOPE",
                                 "severity": "CRITICAL_ERROR",
-                                "defect_desc": u"ماسورة ذات ميل عكسي صاعد (Adverse Slope: Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0),
-                                "action": u"فعّل خيار 'Auto-Flip' لعكس اتجاه رسم الماسورة هندسياً في الطبقة الأصلية.",
+                                "defect_desc": u"ماسورة معكوسة في تحديد الانفرت (Adverse Slope: Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0),
+                                "action": u"تحقق من مناسيب قاع المطابق أو فعّل خيار 'Auto-Flip' لعكس اتجاه رسم الماسورة هندسياً.",
                                 "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
                                 "pipe_len": pipe_len, "topology": topo_status,
                                 "attrs": attr_values
@@ -686,79 +686,51 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                                 "attrs": attr_values
                             })
 
-                    # Case B: Pipe did NOT start with a node point (Start Missing, End Found)
+                    # Case B: Pipe did NOT start with a node point (Start Missing, End Found) -> Natural Start-to-End
                     elif st_inv is None and end_inv is not None:
                         end_inv = round(end_inv, 4)
                         qa_severity = "PARTIAL_START_MISSING"
-                        qa_status = u"Partial Invert: Start Node Missing / End Node Found ({:.3f}m) - Arrow Follows Digitized".format(end_inv)
+                        qa_status = u"Natural Flow: Start to End (Start Node Missing / End Node={:.3f}m)".format(end_inv)
                         partial_count += 1
                         start_missing_count += 1
 
-                        flagged_defects.append({
-                            "geom": line,
-                            "orig_fid": orig_fid,
-                            "defect_type": "MISSING_START_NODE",
-                            "severity": "ADVISORY",
-                            "defect_desc": u"الماسورة لم تبدأ بنقطة منهل ضمن مسافة الالتقاط (End Node={:.3f}m متوفر)".format(end_inv),
-                            "action": u"تحقق من وجود مطبق عند بداية الخط أو سجل المنسوب في جدول سمات الماسورة.",
-                            "st_inv": None, "end_inv": end_inv, "drop_m": None, "slope_pct": None,
-                            "pipe_len": pipe_len, "topology": topo_status,
-                            "attrs": attr_values
-                        })
-
-                    # Case C: Pipe did NOT end with a node point (Start Found, End Missing)
+                    # Case C: Pipe did NOT end with a node point (Start Found, End Missing) -> Natural Start-to-End
                     elif st_inv is not None and end_inv is None:
                         st_inv = round(st_inv, 4)
                         qa_severity = "PARTIAL_END_MISSING"
-                        qa_status = u"Partial Invert: Start Node Found ({:.3f}m) / End Node Missing - Arrow Follows Digitized".format(st_inv)
+                        qa_status = u"Natural Flow: Start to End (Start Node={:.3f}m / End Node Missing)".format(st_inv)
                         partial_count += 1
                         end_missing_count += 1
 
-                        flagged_defects.append({
-                            "geom": line,
-                            "orig_fid": orig_fid,
-                            "defect_type": "MISSING_END_NODE",
-                            "severity": "ADVISORY",
-                            "defect_desc": u"الماسورة لم تنتهِ بنقطة منهل ضمن مسافة الالتقاط (Start Node={:.3f}m متوفر)".format(st_inv),
-                            "action": u"تحقق من نقطة نهاية الماسورة (قد تكون مصباً حراً أو مطبقاً مفقوداً).",
-                            "st_inv": st_inv, "end_inv": None, "drop_m": None, "slope_pct": None,
-                            "pipe_len": pipe_len, "topology": topo_status,
-                            "attrs": attr_values
-                        })
-
-                    # Case D: Unlinked pipe (Neither start nor end node found within tolerance)
+                    # Case D: Unlinked pipe (Neither start nor end node found) -> Natural Start-to-End
                     else:
                         qa_severity = "UNLINKED_NODES"
-                        qa_status = u"Unlinked Pipe: Neither Start nor End Node Found - Arrow Follows Digitized"
+                        qa_status = u"Natural Flow: Start to End (No Invert Points Found)"
                         unlinked_count += 1
-
-                        flagged_defects.append({
-                            "geom": line,
-                            "orig_fid": orig_fid,
-                            "defect_type": "UNLINKED_NODES",
-                            "severity": "WARNING",
-                            "defect_desc": u"ماسورة غير مرتبطة بأي نقاط مطابق عند البداية أو النهاية ضمن مسافة الالتقاط",
-                            "action": u"تأكد من مطابقة نظام الإحداثيات أو زيادة مسافة الالتقاط Snapping Tolerance.",
-                            "st_inv": None, "end_inv": None, "drop_m": None, "slope_pct": None,
-                            "pipe_len": pipe_len, "topology": topo_status,
-                            "attrs": attr_values
-                        })
                 else:
                     normal_count += 1
 
-                # Check if pipe has topological collision without being flagged yet
-                if topo_status == "HEAD_TO_HEAD_COLLISION" and not any(d["orig_fid"] == orig_fid and d["defect_type"] == "ADVERSE_SLOPE" for d in flagged_defects):
-                    flagged_defects.append({
-                        "geom": line,
-                        "orig_fid": orig_fid,
-                        "defect_type": "TOPOLOGY_CONFLICT",
-                        "severity": "WARNING",
-                        "defect_desc": u"تصادم طوبولوجي: الماسورة تلتقي رأساً لرأس مع ماسورة أخرى عند نفس المنهل دون مخرج downstream",
-                        "action": u"تحقق من اتجاه رسم الماسورة أو الماسورة المقابلة لها عند المنهل المشترك.",
-                        "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
-                        "pipe_len": pipe_len, "topology": topo_status,
-                        "attrs": attr_values
-                    })
+                # Check if pipe is reversed in drawing (Topological Collision / Divergence)
+                if topo_status in ("HEAD_TO_HEAD_COLLISION", "TAIL_TO_TAIL_DIVERGENCE"):
+                    if not any(d["orig_fid"] == orig_fid for d in flagged_defects):
+                        if topo_status == "HEAD_TO_HEAD_COLLISION":
+                            desc_coll = u"ماسورة معكوسة في الرسم: تصادم رأساً لرأس مع ماسورة أخرى عند نفس المنهل دون مخرج downstream"
+                            act_coll = u"تحقق من اتجاه رسم الماسورة وعكس خط الرسم ليتوافق مع مسار الشبكة."
+                        else:
+                            desc_coll = u"ماسورة معكوسة في الرسم: تباعد ظهراً لظهر مع ماسورة أخرى عند نفس المنهل دون تغذية upstream"
+                            act_coll = u"تحقق من اتجاه رسم إحدى الماسورتين المتفرعتين من المنهل المشترك."
+
+                        flagged_defects.append({
+                            "geom": line,
+                            "orig_fid": orig_fid,
+                            "defect_type": "REVERSED_DRAWING_TOPOLOGY",
+                            "severity": "WARNING",
+                            "defect_desc": desc_coll,
+                            "action": act_coll,
+                            "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
+                            "pipe_len": pipe_len, "topology": topo_status,
+                            "attrs": attr_values
+                        })
 
                 # -----------------------------------------------------------
                 # Arrow Orientation Logic (Audit Mode vs Auto-Flip Corrected)

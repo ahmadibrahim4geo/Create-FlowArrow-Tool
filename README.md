@@ -203,8 +203,8 @@ flowchart TD
 | Field Name | Type | Description |
 |---|---|---|
 | `ORIG_FID` | LONG | Original pipe feature ObjectID / FID. |
-| `DEFECT_TYPE` | TEXT (50) | Defect category: `ADVERSE_SLOPE`, `MISSING_START_NODE`, `MISSING_END_NODE`, `UNLINKED_NODES`, `TOPOLOGY_CONFLICT`, `ZERO_SLOPE`. |
-| `SEVERITY` | TEXT (25) | Severity level: `CRITICAL_ERROR`, `WARNING`, `ADVISORY`. |
+| `DEFECT_TYPE` | TEXT (50) | Defect category: `REVERSED_INVERT_SLOPE`, `REVERSED_DRAWING_TOPOLOGY`, `ZERO_SLOPE`. |
+| `SEVERITY` | TEXT (25) | Severity level: `CRITICAL_ERROR`, `WARNING`. |
 | `DEFECT_DESC` | TEXT (255) | Detailed engineering defect diagnosis (bilingual). |
 | `RECOMMENDED_ACTION` | TEXT (255) | Specific corrective engineering action to fix the defect. |
 | `START_INV` / `END_INV` | DOUBLE | Upstream & downstream invert elevations. |
@@ -350,8 +350,8 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 | الحقل | النوع | الوصف الفني |
 |---|---|---|
 | `ORIG_FID` | LONG | المعرف الفريد للماسورة الأصلية. |
-| `DEFECT_TYPE` | TEXT (50) | تصنيف الخلل: `ADVERSE_SLOPE`, `MISSING_START_NODE`, `MISSING_END_NODE`, `UNLINKED_NODES`, `TOPOLOGY_CONFLICT`, `ZERO_SLOPE`. |
-| `SEVERITY` | TEXT (25) | درجة الخطورة: `CRITICAL_ERROR`, `WARNING`, `ADVISORY`. |
+| `DEFECT_TYPE` | TEXT (50) | تصنيف الخلل: `REVERSED_INVERT_SLOPE` (معكوسة في تحديد الانفرت)، `REVERSED_DRAWING_TOPOLOGY` (معكوسة في الرسم)، `ZERO_SLOPE` (مستوية بدون انحدار). |
+| `SEVERITY` | TEXT (25) | درجة الخطورة: `CRITICAL_ERROR`, `WARNING`. |
 | `DEFECT_DESC` | TEXT (255) | تشخيص هندسي تفصيلي ثنائي اللغة للخلل. |
 | `RECOMMENDED_ACTION` | TEXT (255) | الإجراء التصحيحي الهندسي الموصى به لمعالجة الخلل. |
 | `START_INV` / `END_INV` | DOUBLE | منسوب قاع البداية والنهاية. |
