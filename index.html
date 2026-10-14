@@ -113,7 +113,7 @@
           <div>
             <div class="flex items-center gap-2">
               <span class="text-xl sm:text-2xl font-black tracking-tight text-white group-hover:text-ocean-400 transition-colors">CreateFlowArrow</span>
-              <span class="text-[10px] px-2 py-0.5 rounded-full bg-ocean-500/20 text-ocean-400 border border-ocean-500/40 font-bold font-inter">v1.2</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-ocean-500/20 text-ocean-400 border border-ocean-500/40 font-bold font-inter">v3.0</span>
             </div>
             <p class="text-xs text-slate-400 hidden sm:block" data-i18n="nav_tagline">أداة أسهم اتجاه السريان وتدقيق شبكات الانحدار</p>
           </div>
@@ -750,48 +750,141 @@
               </tr>
               <tr class="hover:bg-slate-900/50 transition">
                 <td class="p-4 font-mono font-bold text-solar-400">7</td>
-                <td class="p-4 font-bold text-white">Optional Node Points Layer</td>
+                <td class="p-4 font-bold text-white">Optional Node/Manhole Points Layer</td>
                 <td class="p-4 font-mono text-xs">Feature Layer (Point)</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs">اختياري ذكي</span></td>
-                <td class="p-4">طبقة نقاط المطابق أو غرف التفتيش التي تمثل بدايات ونهايات المواسير وتحتوي على المناسيب.</td>
+                <td class="p-4">طبقة نقاط المطابق أو غرف التفتيش التي تمثل بدايات ونهايات المواسير وتُفعّل حساب المناسيب ونسب الميول وفحص الجاذبية.</td>
               </tr>
               <tr class="hover:bg-slate-900/50 transition">
                 <td class="p-4 font-mono font-bold text-solar-400">8</td>
                 <td class="p-4 font-bold text-white">Node Invert Elevation Field</td>
                 <td class="p-4 font-mono text-xs">Field (Numeric)</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs">اختياري ذكي</span></td>
-                <td class="p-4">حقل منسوب القاع (Invert) بطبقة النقاط؛ يتدفق السائل من المنسوب الأعلى للأقل لكشف المواسير المعكوسة.</td>
+                <td class="p-4">حقل منسوب القاع (Invert Elevation) بطبقة النقاط؛ لتوجيه السهم وفق الجاذبية وحساب الميول وفحص اتجاه السريان.</td>
               </tr>
               <tr class="hover:bg-slate-900/50 transition">
                 <td class="p-4 font-mono font-bold text-solar-400">9</td>
-                <td class="p-4 font-bold text-white">Auto-Flip Reversed Pipe Lines</td>
-                <td class="p-4 font-mono text-xs">Boolean</td>
-                <td class="p-4"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs">اختياري ذكي</span></td>
-                <td class="p-4">تعديل هندسة وعكس اتجاه رسم المواسير المعكوسة مباشرة داخل الطبقة الأصلية لتطابق الجاذبية.</td>
-              </tr>
-              <tr class="hover:bg-slate-900/50 transition">
-                <td class="p-4 font-mono font-bold text-solar-400">10</td>
-                <td class="p-4 font-bold text-white">Node Snapping Tolerance</td>
+                <td class="p-4 font-bold text-white">Node Snapping Tolerance (Meters)</td>
                 <td class="p-4 font-mono text-xs">Double</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs">اختياري</span></td>
-                <td class="p-4">مسافة البحث والالتقاط بالمتر لمطابقة نهايات المواسير مع المطابق (افتراضي: <code>1.5</code> متر).</td>
+                <td class="p-4">مسافة البحث والالتقاط بالمتر لمطابقة نهايات المواسير مع المطابق بدقة هندسية (افتراضي: <code>1.5</code> متر).</td>
               </tr>
               <tr class="hover:bg-slate-900/50 transition">
-                <td class="p-4 font-mono font-bold text-ocean-400">11</td>
+                <td class="p-4 font-mono font-bold text-ocean-400">10</td>
                 <td class="p-4 font-bold text-white">Arrow Placement Along Pipe</td>
                 <td class="p-4 font-mono text-xs">String (Choice)</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-xs">اختياري</span></td>
-                <td class="p-4">موضع وضع السهم على طول الماسورة: منتصف (50%)، ربع أول (25%)، أو ثلاثة أرباع (75%) (افتراضي: <code>Midpoint (50%)</code>).</td>
+                <td class="p-4">موضع وضع السهم على طول الماسورة: منتصف (<code>Midpoint (50%)</code>)، ربع أول (<code>25%</code>)، أو ثلاثة أرباع (<code>75%</code>).</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-solar-400">11</td>
+                <td class="p-4 font-bold text-white">Auto-Fix Reversed Pipes In-Place (Optional)</td>
+                <td class="p-4 font-mono text-xs">Boolean</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs">اختياري ذكي</span></td>
+                <td class="p-4">خيار متقدم يقع مباشرة فوق خيار توليد الملاحظات؛ يعكس ويصحح اتجاه رسم المواسير المعكوسة داخل الطبقة الأصلية مباشرة In-Place (افتراضي: <code>False</code>).</td>
               </tr>
               <tr class="hover:bg-slate-900/50 transition">
                 <td class="p-4 font-mono font-bold text-solar-400">12</td>
-                <td class="p-4 font-bold text-white">Swap Invert Attributes on Flip</td>
+                <td class="p-4 font-bold text-white">Swap Invert Attributes on Flipped Pipes</td>
                 <td class="p-4 font-mono text-xs">Boolean</td>
                 <td class="p-4"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-xs">اختياري</span></td>
-                <td class="p-4">عند عكس الماسورة المعكوسة، يتم تبديل قيم حقول مناسيب البداية والنهاية في جدول البيانات لضمان اتساق البيانات مع الرسم (افتراضي: <code>True</code>).</td>
+                <td class="p-4">عند تفعيل Auto-Fix، يتم تبديل قيم حقول مناسيب البداية والنهاية في جدول الماسورة لضمان اتساق البيانات مع الرسم (افتراضي: <code>True</code>).</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-brand-400">13</td>
+                <td class="p-4 font-bold text-white">Generate Pipe Notes Layer (Pipe_Notes)</td>
+                <td class="p-4 font-mono text-xs">Boolean</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 font-bold text-xs">اختياري ذكي</span></td>
+                <td class="p-4">إنشاء طبقة ملاحظات خطية مرافقة باسم <code>{input}_Notes</code> تجمع جميع المواسير المعيبة مع تفصيل أسباب الخلل بالعربية والإنجليزية (افتراضي: <code>True</code>).</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-purple-400">14</td>
+                <td class="p-4 font-bold text-white">Output Flow Arrows Layer</td>
+                <td class="p-4 font-mono text-xs">Feature Class</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-xs">مشتق (Derived)</span></td>
+                <td class="p-4">مخرج برمجي آلي لطبقة الأسهم لربط الأداة في نماذج ModelBuilder وسكربتات بايثون.</td>
+              </tr>
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="p-4 font-mono font-bold text-purple-400">15</td>
+                <td class="p-4 font-bold text-white">Output Pipe Notes Layer</td>
+                <td class="p-4 font-mono text-xs">Feature Class</td>
+                <td class="p-4"><span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-xs">مشتق (Derived)</span></td>
+                <td class="p-4">مخرج برمجي آلي لطبقة ملاحظات التدقيق لربطها في نماذج ModelBuilder وسلاسل المعالجة.</td>
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- QA/QC Output Schema & Companion Notes Layer Presentation -->
+      <div class="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Main Arrows Layer Schema Card -->
+        <div class="glass-card p-6 rounded-2xl border-slate-800 space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="w-10 h-10 rounded-xl bg-ocean-500/20 text-ocean-400 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-table-cells"></i>
+            </span>
+            <div>
+              <h4 class="text-base font-bold text-white">جدول سمات طبقة الأسهم الرئيسية</h4>
+              <p class="text-xs text-slate-400 font-mono">Main Flow Arrows Layer Schema</p>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+              <thead class="bg-slate-900 text-slate-300 border-b border-slate-800">
+                <tr>
+                  <th class="p-2 font-mono">Field</th>
+                  <th class="p-2 font-mono">Type</th>
+                  <th class="p-2">الوصف الهندسي</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                <tr><td class="p-2 font-mono text-ocean-400 font-bold">ORIG_FID</td><td class="p-2 font-mono text-[11px]">LONG</td><td class="p-2">المعرف الفريد للماسورة الأصلية لربط البيانات.</td></tr>
+                <tr><td class="p-2 font-mono text-ocean-400 font-bold">QA_FLOW_STATUS</td><td class="p-2 font-mono text-[11px]">TEXT(255)</td><td class="p-2">تقرير نصي مفصل لحالة السريان، وفروق المناسيب، ونسب الميول.</td></tr>
+                <tr><td class="p-2 font-mono text-ocean-400 font-bold">QA_SEVERITY</td><td class="p-2 font-mono text-[11px]">TEXT(30)</td><td class="p-2">كود الحالة القياسي (NORMAL_DOWNHILL, ADVERSE_SLOPE, ZERO_SLOPE).</td></tr>
+                <tr><td class="p-2 font-mono text-ocean-400 font-bold">TOPOLOGY</td><td class="p-2 font-mono text-[11px]">TEXT(50)</td><td class="p-2">كود الاستمرارية الطوبولوجية (CONTINUOUS_FLOW, HEAD_TO_HEAD_COLLISION).</td></tr>
+                <tr><td class="p-2 font-mono text-ocean-400 font-bold">START_INV / END_INV</td><td class="p-2 font-mono text-[11px]">DOUBLE</td><td class="p-2">مناسيب القاع للبداية والنهاية (بالمتر).</td></tr>
+                <tr><td class="p-2 font-mono text-ocean-400 font-bold">SLOPE_PCT / PER_MIL</td><td class="p-2 font-mono text-[11px]">DOUBLE</td><td class="p-2">الميل الهيدروليكي بالنسبة المئوية (%) وفي الألف (‰).</td></tr>
+                <tr><td class="p-2 font-mono text-ocean-400 font-bold">FLIPPED</td><td class="p-2 font-mono text-[11px]">TEXT(10)</td><td class="p-2">وسم YES إذا تم عكس رسم الخط آلياً بالـ Auto-Fix، أو NO.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Companion Notes Layer Schema Card -->
+        <div class="glass-card p-6 rounded-2xl border-2 border-brand-500/30 space-y-4 relative overflow-hidden">
+          <div class="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-brand-500 via-emerald-400 to-ocean-500"></div>
+          <div class="flex items-center gap-3">
+            <span class="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-clipboard-check"></i>
+            </span>
+            <div>
+              <h4 class="text-base font-bold text-white">طبقة ملاحظات التدقيق المرافقة ({input}_Notes)</h4>
+              <p class="text-xs text-brand-300 font-mono">Bilingual QA/QC Notes Layer</p>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+              <thead class="bg-slate-900 text-slate-300 border-b border-slate-800">
+                <tr>
+                  <th class="p-2 font-mono">Field</th>
+                  <th class="p-2 font-mono">Type</th>
+                  <th class="p-2">الوصف الهندسي</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                <tr><td class="p-2 font-mono text-brand-400 font-bold">DEFECT_TYPE</td><td class="p-2 font-mono text-[11px]">TEXT(50)</td><td class="p-2">نوع الخلل (REVERSED_INVERT_SLOPE, REVERSED_DRAWING_TOPOLOGY, ZERO_SLOPE).</td></tr>
+                <tr><td class="p-2 font-mono text-emerald-400 font-bold">NOTES_AR</td><td class="p-2 font-mono text-[11px]">TEXT(255)</td><td class="p-2">تشخيص صريح بالعربية: "الخطأ من الرسم: ..." أو "الخطأ من الانفرت: ...".</td></tr>
+                <tr><td class="p-2 font-mono text-ocean-400 font-bold">NOTES_EN</td><td class="p-2 font-mono text-[11px]">TEXT(255)</td><td class="p-2">تشخيص صريح بالإنجليزية: "Drawing Error: ..." or "Invert Error: ...".</td></tr>
+                <tr><td class="p-2 font-mono text-brand-400 font-bold">DEFECT_DESC</td><td class="p-2 font-mono text-[11px]">TEXT(255)</td><td class="p-2">شرح تفصيلي لطبيعة الخلل وسببه ومقدار فرق المنسوب والميل.</td></tr>
+                <tr><td class="p-2 font-mono text-brand-400 font-bold">RECOMMENDED_ACTION</td><td class="p-2 font-mono text-[11px]">TEXT(255)</td><td class="p-2">التوصية الهندسية والإجراء التصحيحي الواجب اتخاذه.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] text-slate-300 flex items-start gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-solar-400 mt-0.5"></i>
+            <span>تنبيه المثلث الأصفر ⚠️ عند انتهاء الأداة هو إشعار تدقيق هندسي وليس خطأ؛ يخبرك بوجود مواسير معكوسة تم توثيقها بنجاح في طبقة الملاحظات.</span>
+          </div>
         </div>
       </div>
 
