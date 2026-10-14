@@ -310,6 +310,9 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                        geometry_type="Polygon",
                        triangle_base=2.0, triangle_height=5.0,
                        transfer_attributes=True,
+                       invert_source="From Pipe Layer Attributes (Start / End Invert)",
+                       pipe_start_inv_field=None,
+                       pipe_end_inv_field=None,
                        point_layer=None, invert_field=None,
                        flip_reversed_pipes=False,
                        search_tolerance=1.5,
@@ -319,6 +322,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
     """
     Main routine to generate flow direction arrow geometries (Polygon or Polyline),
     conduct QA/QC slope & network topology audits, and output flagged defect layers.
+    Supports both Pipe Attributes (Start/End Invert) and Node Points (Snapping) elevation sources.
     Fully supports Arabic paths, workspaces, layer names, and attributes.
     """
     t_start = time.time()
@@ -326,10 +330,24 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
     input_layer = to_unicode(input_layer)
     output_workspace = to_unicode(output_workspace)
     output_layer_name = to_unicode(output_layer_name)
+    invert_source = to_unicode(invert_source or u"From Pipe Layer Attributes (Start / End Invert)")
+    pipe_start_inv_field = to_unicode(pipe_start_inv_field) if pipe_start_inv_field else None
+    pipe_end_inv_field = to_unicode(pipe_end_inv_field) if pipe_end_inv_field else None
     point_layer = to_unicode(point_layer) if point_layer else None
     invert_field = to_unicode(invert_field) if invert_field else None
     arrow_placement = to_unicode(arrow_placement) if arrow_placement else u"Midpoint (50%)"
     geometry_type = to_unicode(geometry_type) if geometry_type else u"Polygon"
+
+    # Backward compatibility: if caller passed point_layer in invert_source position
+    valid_sources = [
+        "From Pipe Layer Attributes (Start / End Invert)",
+        "From Node / Manhole Layer (Snapping)",
+        "None (Digitized Direction Only)"
+    ]
+    if invert_source and invert_source not in valid_sources:
+        if arcpy.Exists(invert_source) or point_layer is None:
+            point_layer = invert_source
+            invert_source = "From Node / Manhole Layer (Snapping)"
 
     if not arcpy.Exists(output_workspace):
         log_err(u"Specified output workspace does not exist: {}".format(output_workspace))
@@ -401,16 +419,44 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
     network_topology = analyze_network_topology(pipes_topology_input, tolerance=search_tol)
 
     # -----------------------------------------------------------------------
-    # Step 2: Node Points Layer Invert Indexing (Multi-Tier & Arabic Safe)
+    # Step 2: Invert Engine Configuration
     # -----------------------------------------------------------------------
+    input_fields = [f.name for f in arcpy.ListFields(input_layer)]
+    input_field_objs = {f.name: f for f in arcpy.ListFields(input_layer)}
+
+    # Auto-detect pipe invert fields if not explicitly specified
+    detected_st, detected_end = find_pipe_invert_fields(input_fields)
+    if "Pipe Layer Attributes" in invert_source:
+        if not pipe_start_inv_field and detected_st:
+            pipe_start_inv_field = detected_st
+        if not pipe_end_inv_field and detected_end:
+            pipe_end_inv_field = detected_end
+
+    calc_mode = "NONE"
+    if "Pipe Layer Attributes" in invert_source:
+        if pipe_start_inv_field and pipe_end_inv_field:
+            calc_mode = "PIPE_ATTRIBUTES"
+        else:
+            log_warn(u"Start or End Invert field not found in pipe layer. Falling back to digitized line direction.")
+    elif "Node / Manhole" in invert_source:
+        if point_layer and invert_field and arcpy.Exists(point_layer):
+            calc_mode = "NODE_SNAPPING"
+        else:
+            log_warn(u"Node points layer or invert elevation field missing. Falling back to digitized line direction.")
+
     point_grid = {}
-    soft_tol = search_tol * 1.5  # Soft snapping tolerance for slightly offset node points
+    soft_tol = search_tol * 1.5
     cell_size = max(soft_tol, 1.0)
-    use_node_inverts = False
     node_point_count = 0
 
-    if point_layer and invert_field and arcpy.Exists(point_layer):
-        log_msg(u"Node Points Layer provided: {} (Field: '{}', Snapping Tolerance: {}m)".format(
+    if calc_mode == "PIPE_ATTRIBUTES":
+        log_msg(u"Invert Source: Pipe Layer Attributes (Start Field: '{}', End Field: '{}')".format(
+            pipe_start_inv_field, pipe_end_inv_field
+        ))
+        log_msg(u"Directly reading invert elevations from pipe attributes table and evaluating hydraulic slopes...")
+
+    elif calc_mode == "NODE_SNAPPING":
+        log_msg(u"Invert Source: Node Points Layer: {} (Field: '{}', Snapping Tolerance: {}m)".format(
             point_layer, invert_field, search_tol
         ))
         log_msg(u"Indexing node points and preparing slope percentage evaluation...")
@@ -433,11 +479,14 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                         except (ValueError, TypeError):
                             pass
             log_msg(u"Successfully indexed {} node points with valid invert elevations.".format(node_point_count))
-            use_node_inverts = True if node_point_count > 0 else False
+            if node_point_count == 0:
+                log_warn(u"No valid invert elevations found in node points layer. Falling back to digitized line direction.")
+                calc_mode = "NONE"
         except Exception as e_pt:
             log_warn(u"Could not process node points layer: {}. Invert and slope calculation will be skipped.".format(to_unicode(e_pt)))
+            calc_mode = "NONE"
     else:
-        log_msg(u"Optional node points layer not specified. Tool will generate flow arrows based on digitized line direction.")
+        log_msg(u"Invert Source: None (Standard Mode). Tool will generate flow arrows based on digitized line direction.")
 
     def get_nearest_invert(px, py, max_dist=search_tol):
         if not point_grid:
@@ -523,13 +572,25 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
         "SLOPE_PCT", "SLOPE_PER_MIL", "FLIPPED"
     ] + fields_to_copy
 
-    # Identify index of pipe invert attributes for fallback
+    # Identify index of pipe invert attributes
     st_field_idx = None
     end_field_idx = None
-    if st_inv_line_field and st_inv_line_field in fields_to_copy:
-        st_field_idx = 2 + fields_to_copy.index(st_inv_line_field)
-    if end_inv_line_field and end_inv_line_field in fields_to_copy:
-        end_field_idx = 2 + fields_to_copy.index(end_inv_line_field)
+    if calc_mode == "PIPE_ATTRIBUTES":
+        if pipe_start_inv_field in fields_to_copy:
+            st_field_idx = 2 + fields_to_copy.index(pipe_start_inv_field)
+        else:
+            st_field_idx = len(search_fields)
+            search_fields.append(pipe_start_inv_field)
+        if pipe_end_inv_field in fields_to_copy:
+            end_field_idx = 2 + fields_to_copy.index(pipe_end_inv_field)
+        else:
+            end_field_idx = len(search_fields)
+            search_fields.append(pipe_end_inv_field)
+    elif calc_mode == "NODE_SNAPPING":
+        if st_inv_line_field and st_inv_line_field in fields_to_copy:
+            st_field_idx = 2 + fields_to_copy.index(st_inv_line_field)
+        if end_inv_line_field and end_inv_line_field in fields_to_copy:
+            end_field_idx = 2 + fields_to_copy.index(end_inv_line_field)
 
     # Statistics counters & QA defect tracking
     total_pipes = 0
@@ -564,7 +625,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
 
                 line = row[0]
                 orig_fid = row[1]
-                attr_values = list(row[2:])
+                attr_values = list(row[2: 2 + len(fields_to_copy)])
 
                 if not line or line.length <= 1e-4:
                     continue
@@ -632,7 +693,11 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                 qa_severity = "DIGITIZED_ONLY"
                 qa_status = u"Normal Flow (Digitized Direction) / سريان طبيعي وفق اتجاه الرسم"
 
-                if use_node_inverts:
+                if calc_mode == "PIPE_ATTRIBUTES":
+                    st_inv = pipe_st_val
+                    end_inv = pipe_end_val
+
+                elif calc_mode == "NODE_SNAPPING":
                     # Resolve Start Invert
                     st_inv = get_nearest_invert(start_point.X, start_point.Y, max_dist=search_tol)
                     if st_inv is None:
@@ -647,7 +712,8 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                     if end_inv is None and pipe_end_val is not None:
                         end_inv = pipe_end_val
 
-                    # Case A: Both node inverts determined
+                if calc_mode in ("PIPE_ATTRIBUTES", "NODE_SNAPPING"):
+                    # Case A: Both inverts determined
                     if st_inv is not None and end_inv is not None:
                         st_inv = round(st_inv, 4)
                         end_inv = round(end_inv, 4)
@@ -673,22 +739,25 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                                 qa_status = u"REVERSED / ADVERSE SLOPE (Audit Mode): Arrow reflects actual uphill digitization (Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
 
                             # Register defect for QA Notes (Reversed in Invert Determination)
-                            notes_inv_ar = u"الخطأ من الانفرت: منسوب البداية ({:.3f}م) أقل من النهاية ({:.3f}م) / ميل عكسي صاعد {:.2f}%".format(
+                            notes_diag_ar = u"الخطأ من الانفرت: منسوب البداية ({:.3f}م) أقل من النهاية ({:.3f}م) / ميل عكسي صاعد {:.2f}%".format(
                                 st_inv, end_inv, abs(slope_pct or 0.0)
                             )
-                            notes_inv_en = u"Invert Error: Start invert ({:.3f}m) < End invert ({:.3f}m) / Adverse slope {:+.2f}%".format(
+                            notes_diag_en = u"Invert Error: Start invert ({:.3f}m) < End invert ({:.3f}m) / Adverse slope {:+.2f}%".format(
                                 st_inv, end_inv, slope_pct or 0.0
                             )
+                            desc_diag = u"ماسورة ذات ميل عكسي صاعد (Adverse Slope: Drop={:+.3f}م, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
+                            act_diag = u"تحقق من مناسيب قاع المواسير/المطابق (Inverts) في جدول البيانات أو فعّل خيار 'Auto-Fix' لتصحيح اتجاه الرسم."
+
                             flagged_defects.append({
                                 "geom": line,
                                 "orig_fid": orig_fid,
                                 "defect_type": "REVERSED_INVERT_SLOPE",
                                 "severity": "CRITICAL_ERROR",
-                                "notes_ar": notes_inv_ar,
-                                "notes_en": notes_inv_en,
-                                "notes": notes_inv_ar,
-                                "defect_desc": u"الخطأ من الانفرت: ميل عكسي صاعد ضد الجاذبية (Start={:.3f}m < End={:.3f}m, Drop={:+.3f}m, Slope={:.2f}%)".format(st_inv, end_inv, inv_drop, slope_pct or 0.0),
-                                "action": u"تحقق من مناسيب قاع المطابق أو فعّل خيار 'Auto-Fix' لعكس اتجاه رسم الماسورة هندسياً.",
+                                "notes_ar": notes_diag_ar,
+                                "notes_en": notes_diag_en,
+                                "notes": notes_diag_ar,
+                                "defect_desc": desc_diag,
+                                "action": act_diag,
                                 "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
                                 "pipe_len": pipe_len, "topology": topo_status,
                                 "attrs": attr_values
@@ -700,6 +769,8 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
 
                             notes_flat_ar = u"الخطأ من الانفرت: ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Slope=0.00%)"
                             notes_flat_en = u"Invert Error: Completely flat pipe with zero hydraulic head drop (Slope=0.00%)"
+                            desc_flat = u"ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Zero Invert Drop)"
+                            act_flat = u"تحقق من مناسيب قاع الماسورة في المخططات وجدول البيانات."
 
                             flagged_defects.append({
                                 "geom": line,
@@ -709,33 +780,33 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                                 "notes_ar": notes_flat_ar,
                                 "notes_en": notes_flat_en,
                                 "notes": notes_flat_ar,
-                                "defect_desc": u"ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Zero Invert Drop)",
-                                "action": u"تحقق من مناسيب قاع المطابق للماسورة في المخططات التصميمية.",
+                                "defect_desc": desc_flat,
+                                "action": act_flat,
                                 "st_inv": st_inv, "end_inv": end_inv, "drop_m": 0.0, "slope_pct": 0.0,
                                 "pipe_len": pipe_len, "topology": topo_status,
                                 "attrs": attr_values
                             })
 
-                    # Case B: Pipe did NOT start with a node point (Start Missing, End Found) -> Natural Start-to-End
+                    # Case B: Start Missing, End Found
                     elif st_inv is None and end_inv is not None:
                         end_inv = round(end_inv, 4)
                         qa_severity = "PARTIAL_START_MISSING"
-                        qa_status = u"Natural Flow: Start to End (Start Node Missing / End Node={:.3f}m)".format(end_inv)
+                        qa_status = u"Natural Flow: Start to End (Start Invert Missing / End Invert={:.3f}م)".format(end_inv)
                         partial_count += 1
                         start_missing_count += 1
 
-                    # Case C: Pipe did NOT end with a node point (Start Found, End Missing) -> Natural Start-to-End
+                    # Case C: Start Found, End Missing
                     elif st_inv is not None and end_inv is None:
                         st_inv = round(st_inv, 4)
                         qa_severity = "PARTIAL_END_MISSING"
-                        qa_status = u"Natural Flow: Start to End (Start Node={:.3f}m / End Node Missing)".format(st_inv)
+                        qa_status = u"Natural Flow: Start to End (Start Invert={:.3f}م / End Invert Missing)".format(st_inv)
                         partial_count += 1
                         end_missing_count += 1
 
-                    # Case D: Unlinked pipe (Neither start nor end node found) -> Natural Start-to-End
+                    # Case D: Unlinked pipe (Neither start nor end invert found)
                     else:
                         qa_severity = "UNLINKED_NODES"
-                        qa_status = u"Natural Flow: Start to End (No Invert Points Found)"
+                        qa_status = u"Natural Flow: Start to End (No Invert Values Found)"
                         unlinked_count += 1
                 else:
                     normal_count += 1
@@ -842,10 +913,20 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
         update_fields = ["OID@", "SHAPE@"]
         s_up_idx = None
         e_up_idx = None
-        if swap_invert_fields and st_inv_line_field and end_inv_line_field:
-            update_fields.extend([st_inv_line_field, end_inv_line_field])
-            s_up_idx = 2
-            e_up_idx = 3
+
+        target_st_swap = None
+        target_end_swap = None
+        if swap_invert_fields:
+            if calc_mode == "PIPE_ATTRIBUTES" and pipe_start_inv_field and pipe_end_inv_field:
+                target_st_swap = pipe_start_inv_field
+                target_end_swap = pipe_end_inv_field
+            elif calc_mode == "NODE_SNAPPING":
+                target_st_swap, target_end_swap = find_pipe_invert_fields(input_fields)
+
+            if target_st_swap and target_end_swap:
+                update_fields.extend([target_st_swap, target_end_swap])
+                s_up_idx = 2
+                e_up_idx = 3
 
         try:
             with arcpy.da.UpdateCursor(input_layer, update_fields) as up_cursor:
@@ -968,7 +1049,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
     # -----------------------------------------------------------------------
     elapsed = round(time.time() - t_start, 2)
 
-    if use_node_inverts:
+    if calc_mode in ("PIPE_ATTRIBUTES", "NODE_SNAPPING"):
         pct_norm = (normal_count / total_pipes * 100.0) if total_pipes else 0.0
         pct_rev = (reversed_count / total_pipes * 100.0) if total_pipes else 0.0
         pct_flat = (flat_count / total_pipes * 100.0) if total_pipes else 0.0
@@ -977,22 +1058,30 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
 
         audit_mode_str = u"Audit & In-Place Flipping (Corrected)" if flip_reversed_pipes else u"Audit & Inspection Mode (True-to-Life)"
 
+        if calc_mode == "PIPE_ATTRIBUTES":
+            source_desc = u"Pipe Layer Attributes (Start: '{}', End: '{}')".format(pipe_start_inv_field, pipe_end_inv_field)
+            src_ar = u"خصائص طبقة المواسير مباشرة (Start/End Invert)"
+        else:
+            source_desc = u"Node Points Layer: {} (Field: '{}', Snapping: {}m)".format(point_layer, invert_field, search_tol)
+            src_ar = u"نقاط المطابق مع التقاط الحواف (Snapping)"
+
         summary_banner = u"""
 ======================================================================
   🌊 CREATE FLOW ARROW & QA/QC AUDIT ENGINE - SUMMARY
   تقرير تدقيق ومراجعة اتجاهات السريان والميول الهيدروليكية
 ======================================================================
-  Mode / نمط التشغيل:            Smart Node Invert Alignment & Slope QA/QC
+  Mode / نمط التشغيل:            Smart Invert Alignment & Slope QA/QC
+  Invert Data Source / المصدر:   {}
+  Source Details / التفاصيل:     {}
   Inspection Philosophy / الفلسفة: {}
-  Node Points Layer / طبقة النقاط: {} (Field: '{}')
   Total Pipes Analyzed / إجمالي المواسير: {}
   - Normal Downhill Flow / سريان طبيعي مع الانحدار:  {} ({:.1f}%)
   - Adverse Slope (Reversed) / ميول عكسية:           {} ({:.1f}%)
   - Flat Pipes (Zero Drop) / خطوط مستوية:            {} ({:.1f}%)
   - Partial Inverts / مناسيب جزئية (نقطة واحدة):      {} ({:.1f}%)
-    * Start Node Missing / لم تبدأ بنقطة منهل:       {}
-    * End Node Missing / لم تنتهِ بنقطة منهل:        {}
-  - Unlinked Pipes / مواسير غير مرتبطة بنقاط:        {} ({:.1f}%)
+    * Start Invert Missing / منسوب البداية مفقود:     {}
+    * End Invert Missing / منسوب النهاية مفقود:      {}
+  - Unlinked Pipes / مواسير بدون مناسيب:             {} ({:.1f}%)
   ------------------------------------------------------------------
   Topological Collisions / تصادمات عند المطابق:      {} pipe(s)
   Hydraulic Slopes / حساب الميول الهيدروليكية:       YES (SLOPE_PCT & SLOPE_PER_MIL)
@@ -1002,8 +1091,9 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
   Elapsed Execution Time / زمن التنفيذ:              {} seconds
 ======================================================================
 """.format(
+            src_ar,
+            source_desc,
             audit_mode_str,
-            point_layer, invert_field,
             total_pipes,
             normal_count, pct_norm,
             reversed_count, pct_rev,
@@ -1025,7 +1115,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
   تقرير إنشاء أسهم اتجاه السريان
 ======================================================================
   Mode / نمط التشغيل:            Standard Flow Arrows (Digitized Direction)
-  Node Points Layer / طبقة النقاط: Not Specified (Slope & Invert Analysis Skipped)
+  Invert Elevation Source:       None (Slope & Invert Analysis Skipped)
   Total Pipes Processed / إجمالي المواسير: {}
   Topological Collisions / تصادمات الرؤوس:   {}
   Flow Arrows Generated / الأسهم المنشأة:    {} ({})
@@ -1065,6 +1155,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
 
 def main():
     try:
+        argc = arcpy.GetArgumentCount()
         input_layer = arcpy.GetParameterAsText(0)
         output_workspace = arcpy.GetParameterAsText(1)
         output_layer_name = arcpy.GetParameterAsText(2)
@@ -1073,51 +1164,88 @@ def main():
         triangle_height = float(arcpy.GetParameterAsText(5))
 
         transfer_attrs = True
-        if arcpy.GetArgumentCount() > 6:
+        if argc > 6:
             val = arcpy.GetParameterAsText(6)
             if val and val.lower() in ("false", "0", "no"):
                 transfer_attrs = False
 
-        point_layer = arcpy.GetParameterAsText(7) if arcpy.GetArgumentCount() > 7 else None
-        if point_layer == "":
-            point_layer = None
+        # Determine if calling with new 17-parameter schema or legacy 14-parameter schema
+        param7_val = arcpy.GetParameterAsText(7) if argc > 7 else ""
+        is_legacy_14 = False
+        valid_sources = [
+            "From Pipe Layer Attributes (Start / End Invert)",
+            "From Node / Manhole Layer (Snapping)",
+            "None (Digitized Direction Only)"
+        ]
 
-        invert_field = arcpy.GetParameterAsText(8) if arcpy.GetArgumentCount() > 8 else None
-        if invert_field == "":
-            invert_field = None
+        if argc <= 14 and param7_val and param7_val not in valid_sources:
+            if not any(param7_val.startswith(prefix) for prefix in ("From Pipe", "From Node", "None")):
+                is_legacy_14 = True
 
-        search_tolerance = 1.5
-        if arcpy.GetArgumentCount() > 9:
-            val_tol = arcpy.GetParameterAsText(9)
-            if val_tol:
+        if is_legacy_14:
+            # Legacy 14-parameter layout
+            point_layer = arcpy.GetParameterAsText(7) or None
+            invert_field = arcpy.GetParameterAsText(8) or None
+            search_tolerance = 1.5
+            if argc > 9 and arcpy.GetParameterAsText(9):
                 try:
-                    search_tolerance = float(val_tol)
+                    search_tolerance = float(arcpy.GetParameterAsText(9))
+                except ValueError:
+                    pass
+            arrow_placement = arcpy.GetParameterAsText(10) or "Midpoint (50%)"
+            flip_reversed = False
+            if argc > 11:
+                val_flip = arcpy.GetParameterAsText(11)
+                if val_flip and val_flip.lower() in ("true", "1", "yes"):
+                    flip_reversed = True
+            swap_inverts = True
+            if argc > 12:
+                val_swap = arcpy.GetParameterAsText(12)
+                if val_swap and val_swap.lower() in ("false", "0", "no"):
+                    swap_inverts = False
+            generate_qa = True
+            if argc > 13:
+                val_qa = arcpy.GetParameterAsText(13)
+                if val_qa and val_qa.lower() in ("false", "0", "no"):
+                    generate_qa = False
+
+            invert_source = "From Node / Manhole Layer (Snapping)" if point_layer else "None (Digitized Direction Only)"
+            pipe_start_inv_field = None
+            pipe_end_inv_field = None
+
+        else:
+            # Modern 17-parameter layout
+            invert_source = param7_val or "From Pipe Layer Attributes (Start / End Invert)"
+            pipe_start_inv_field = arcpy.GetParameterAsText(8) or None
+            pipe_end_inv_field = arcpy.GetParameterAsText(9) or None
+            point_layer = arcpy.GetParameterAsText(10) or None
+            invert_field = arcpy.GetParameterAsText(11) or None
+
+            search_tolerance = 1.5
+            if argc > 12 and arcpy.GetParameterAsText(12):
+                try:
+                    search_tolerance = float(arcpy.GetParameterAsText(12))
                 except ValueError:
                     pass
 
-        arrow_placement = "Midpoint (50%)"
-        if arcpy.GetArgumentCount() > 10:
-            val_place = arcpy.GetParameterAsText(10)
-            if val_place:
-                arrow_placement = val_place
+            arrow_placement = arcpy.GetParameterAsText(13) or "Midpoint (50%)"
+            flip_reversed = False
+            if argc > 14:
+                val_flip = arcpy.GetParameterAsText(14)
+                if val_flip and val_flip.lower() in ("true", "1", "yes"):
+                    flip_reversed = True
 
-        flip_reversed = False
-        if arcpy.GetArgumentCount() > 11:
-            val_flip = arcpy.GetParameterAsText(11)
-            if val_flip and val_flip.lower() in ("true", "1", "yes"):
-                flip_reversed = True
+            swap_inverts = True
+            if argc > 15:
+                val_swap = arcpy.GetParameterAsText(15)
+                if val_swap and val_swap.lower() in ("false", "0", "no"):
+                    swap_inverts = False
 
-        swap_inverts = True
-        if arcpy.GetArgumentCount() > 12:
-            val_swap = arcpy.GetParameterAsText(12)
-            if val_swap and val_swap.lower() in ("false", "0", "no"):
-                swap_inverts = False
-
-        generate_qa = True
-        if arcpy.GetArgumentCount() > 13:
-            val_qa = arcpy.GetParameterAsText(13)
-            if val_qa and val_qa.lower() in ("false", "0", "no"):
-                generate_qa = False
+            generate_qa = True
+            if argc > 16:
+                val_qa = arcpy.GetParameterAsText(16)
+                if val_qa and val_qa.lower() in ("false", "0", "no"):
+                    generate_qa = False
 
         create_flow_arrows(
             input_layer=input_layer,
@@ -1127,6 +1255,9 @@ def main():
             triangle_base=triangle_base,
             triangle_height=triangle_height,
             transfer_attributes=transfer_attrs,
+            invert_source=invert_source,
+            pipe_start_inv_field=pipe_start_inv_field,
+            pipe_end_inv_field=pipe_end_inv_field,
             point_layer=point_layer,
             invert_field=invert_field,
             flip_reversed_pipes=flip_reversed,

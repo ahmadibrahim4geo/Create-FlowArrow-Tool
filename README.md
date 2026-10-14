@@ -40,11 +40,10 @@ Networks imported from AutoCAD civil drawings, legacy GIS databases, or surveyed
 1. Generates geometric flow direction arrows (**Polygon** triangles or **Polyline** open V-arrows) aligned precisely at each pipe's mathematical **midpoint** (or custom placement ratio: 25%, 50%, 75%).
 2. Aligns arrow center-of-gravity (centroid) with the pipe line to eliminate visual distortion.
 3. Calculates instantaneous **tangents along curves** to guarantee smooth flow orientation even on curved conduit alignments.
-4. **Smart Node Invert & Slope Percentage Engine:**
-   - Activated strictly when the user provides the **Optional Node Points Layer** and selects the **Node Invert Elevation Field**.
-   - Uses high-speed spatial grid hashing ($O(1)$) to snap pipe endpoints to node points.
-   - **3-Tier Invert Resolution:** Exact snapping tolerance $\rightarrow$ Adaptive soft tolerance ($1.5\times$) $\rightarrow$ Pipe feature attribute fallback.
-   - **Robust Missing Node Handling:** Seamlessly processes pipes that do not start with a manhole node without errors ("تعمل تمام"), generating flow arrows along the digitized line and accurately documenting invert status.
+4. **Flexible Invert Elevation & Slope Calculation Engine:**
+   - **From Pipe Layer Attributes (Start / End Invert) [Default]:** Directly reads invert elevations from pipe attributes (`START_INV`, `END_INV`, `US_INV`, `DS_INV`, etc.) with intelligent field auto-detection—no manhole points layer required!
+   - **From Node / Manhole Layer (Snapping):** Uses high-speed spatial grid hashing ($O(1)$) to snap pipe endpoints to node points with 3-tier snapping tolerance and robust missing node handling ("تعمل تمام").
+   - **None (Digitized Direction Only):** Generates cartographic flow arrows following digitized line direction without hydraulic elevation calculations.
    - Computes **Start Invert**, **End Invert**, **Invert Drop / Head**, **Pipe Length**, **Hydraulic Slope Percentage (`SLOPE_PCT %`)**, and **Slope Per-Mil (`SLOPE_PER_MIL ‰`)**.
 5. **QA/QC Audit Mode & In-Place Auto-Fix:**
    - In default Audit Mode (`Auto-Fix = False`), arrows on adverse/reversed pipes are oriented **strictly in the line's digitized direction (uphill)** so the engineer visually sees the defect directly on the map.
@@ -171,15 +170,18 @@ flowchart TD
 | **4** | **Arrow Base Width (Meters)** | Double | Required | `2.0` | Transverse base width of the arrow in map units (meters). |
 | **5** | **Arrow Height / Length (Meters)** | Double | Required | `5.0` | Axial height / length from base to tip in map units (meters). |
 | **6** | **Transfer Pipe Attributes** | Boolean | Optional | `True` | Transfers original pipe attributes to arrow layer with `ORIG_FID`. |
-| **7** | **Optional Node/Manhole Points Layer** | Feature Layer (Point) | Optional | `None` | Manhole/node points layer to evaluate invert elevations and slopes. |
-| **8** | **Node Invert Elevation Field** | Field (Numeric) | Optional | `None` | Invert elevation field from node layer (e.g. `MANHOLEINVERTELEVATION`). |
-| **9** | **Node Snapping Tolerance (Meters)** | Double | Optional | `1.5` | Search tolerance to snap pipe ends to manholes. |
-| **10** | **Arrow Placement Along Pipe** | String (Choice) | Optional | `Midpoint (50%)` | Relative placement: `Midpoint (50%)`, `Quarter (25%)`, or `Three-Quarters (75%)`. |
-| **11** | **Auto-Fix Reversed Pipes In-Place (Optional)** | Boolean | Optional | `False` | Corrects reversed pipe polylines in-place in original layer. |
-| **12** | **Swap Invert Attributes on Flipped Pipes** | Boolean | Optional | `True` | Swaps start and end invert attributes on flipped pipes. |
-| **13** | **Generate Pipe Notes Layer (Pipe_Notes)** | Boolean | Optional | `True` | Generates a companion polyline layer named `{input}_Notes` containing defect-flagged pipes. |
-| **14** | **Output Flow Arrows Layer** | Feature Class | Derived (Output) | — | Derived output for ModelBuilder and automated script chains. |
-| **15** | **Output Pipe Notes Layer** | Feature Class | Derived (Output) | — | Derived notes polyline output for flagged pipes. |
+| **7** | **Invert Elevation Data Source** | String (Choice) | Optional | `From Pipe Layer Attributes` | Invert data source: `From Pipe Layer Attributes`, `From Node / Manhole Layer`, or `None`. |
+| **8** | **Pipe Start Invert Field** | Field (Numeric) | Optional | `None` | Upstream invert field in pipe table (auto-detected: `START_INV`, `US_INV`, etc.). |
+| **9** | **Pipe End Invert Field** | Field (Numeric) | Optional | `None` | Downstream invert field in pipe table (auto-detected: `END_INV`, `DS_INV`, etc.). |
+| **10** | **Optional Node/Manhole Points Layer** | Feature Layer (Point) | Optional | `None` | Manhole/node points layer to evaluate invert elevations via spatial snapping. |
+| **11** | **Node Invert Elevation Field** | Field (Numeric) | Optional | `None` | Invert elevation field from node layer (e.g. `MANHOLEINVERTELEVATION`). |
+| **12** | **Node Snapping Tolerance (Meters)** | Double | Optional | `1.5` | Search tolerance to snap pipe ends to manholes. |
+| **13** | **Arrow Placement Along Pipe** | String (Choice) | Optional | `Midpoint (50%)` | Relative placement: `Midpoint (50%)`, `Quarter (25%)`, or `Three-Quarters (75%)`. |
+| **14** | **Auto-Fix Reversed Pipes In-Place (Optional)** | Boolean | Optional | `False` | Corrects reversed pipe polylines in-place in original layer. |
+| **15** | **Swap Invert Attributes on Flipped Pipes** | Boolean | Optional | `True` | Swaps start and end invert attributes on flipped pipes. |
+| **16** | **Generate Pipe Notes Layer (Pipe_Notes)** | Boolean | Optional | `True` | Generates a companion polyline layer named `{input}_Notes` containing defect-flagged pipes. |
+| **17** | **Execution Summary Report** | String | Derived (Output) | — | Derived summary banner report output for ModelBuilder and logs. |
+| **18** | **Output QA Notes Layer** | Feature Class | Derived (Output) | — | Derived notes polyline output for flagged pipes. |
 
 ---
 
@@ -261,30 +263,33 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 4. **حدوث تصادمات سريان عند المطابق (Head-to-Head Collisions)** حيث تلتقي ماسورتان في نفس المنهل دون وجود مخرج.
 5. **مشاكل المسارات وقواعد البيانات باللغة العربية** التي تسبب أخطاء ترميز (Encoding) في أدوات بايثون التقليدية.
 
-### الحل المطور في الإصدار المحدث (v2.6):
+### الحل المطور في الإصدار المحدث (v3.1):
 تقوم أداة **CreateFlowArrow** ببناء محرك متكامل لتدقيق الجودة الهندسية وإنشاء طبقة أسهم اتجاه السريان:
-1. **وضع التدقيق الصادق وخيار الإصلاح التلقائي (Audit Mode & Auto-Fix):**
+1. **تعدد مصادر مناسيب الانفرت (Flexible Invert Sources):**
+   - **من جدول خصائص المواسير مباشرة (From Pipe Layer Attributes - Start/End Invert) [الافتراضي]:** قراءة مناسيب البداية والنهاية مباشرة من حقول طبقة المواسير مع التعرف التلقائي الذكي على الحقول (`START_INV`, `END_INV`, `US_INV`, `DS_INV`, `منسوب_البداية`, `منسوب_النهاية` ... إلخ) دون الحاجة لوجود طبقة نقاط للمطابق!
+   - **من طبقة نقاط المطابق (From Node / Manhole Layer - Snapping):** استمداد المناسيب من نقاط المطابق باستخدام الالتقاط المكاني المتقدم ($O(1)$) بثلاث مستويات بحث.
+   - **بدون مناسيب (None - Digitized Direction Only):** توليد الأسهم وفق اتجاه الرسم الكارتوجرافي للخطوط وتخطي حساب الميول.
+2. **وضع التدقيق الصادق وخيار الإصلاح التلقائي (Audit Mode & Auto-Fix):**
    - السهم يُرسم في وضع التدقيق الافتراضي (`Auto-Fix = False` غير مفعل تلقائياً) **باتجاه رسم الماسورة الفعلي كما هو (بالمقلوب)** ليرى المهندس الخطأ بعينه على الخريطة دون تجميل أو إخفاء!
    - تم تزويد الأداة بخيار مخصص يقع **فوق خيار توليد الملاحظات مباشرة** باسم:
      `Auto-Fix Reversed Pipes In-Place (Optional)`.
-   - عند تفعيل هذا الخيار من قبل المستخدم، تفحص الأداة الشبكة وتعالج الأخطاء بشكل مباشر داخل **الطبقة الأصلية نفسها** (تعديل هندسة الخط في مكانه In-Place دون حذفه ودون إنشاء طبقة مواسير مكررة)، مع تبديل قيم المناسيب في جدول البيانات وبناء طبقة الأسهم بالاتجاه الهيدروليكي الصحيح مع الجاذبية.
-2. **فحص الاستمرارية الطوبولوجية للمواسير المحيطة (Network Continuity Check):**
+   - عند تفعيل هذا الخيار من قبل المستخدم، تفحص الأداة الشبكة وتعالج الأخطاء بشكل مباشر داخل **الطبقة الأصلية نفسها** (تعديل هندسة الخط في مكانه In-Place دون حذفه ودون إنشاء طبقة مواسير مكررة)، مع تبديل قيم المناسيب في جدول البيانات (`Swap Invert Attributes`) وبناء طبقة الأسهم بالاتجاه الهيدروليكي الصحيح مع الجاذبية.
+3. **فحص الاستمرارية الطوبولوجية للمواسير المحيطة (Network Continuity Check):**
    - تفحص الأداة اتصال كل ماسورة بالمواسير المجاورة لها عند المطابق المشتركة لرصد:
      * **تصادم الرؤوس (Head-to-Head Collision):** ماسورتان أو أكثر تصبان في نفس المنهل دون مخرج downstream.
      * **تفرع الأذيال (Tail-to-Tail Divergence):** ماسورتان تبدآن من نفس المنهل دون خط تغذية upstream.
      * **الماسورة الشاذة وسط المسار (Isolated Reversal).**
-3. **طبقة ملاحظات مستقلة تأخذ اسم طبقة المواسير (`{Input_Pipe_Layer}_Notes` / `Pipe_Notes`):**
+4. **طبقة ملاحظات مستقلة تأخذ اسم طبقة المواسير (`{Input_Pipe_Layer}_Notes` / `Pipe_Notes`):**
    - تُنشئ الأداة تلقائياً طبقة خطية مرافقة تأخذ اسم الطبقة المدخلة مضافاً إليها `_Notes` (أو `Pipe_Notes`) تحتوي على المواسير ذات الملاحظات.
    - تحتوي الطبقة على حقل مخصص باسم **`NOTES`** يحدد بدقة مصدر الخلل بعبارة عربية صريحة:
      * **`الخطأ من الرسم: ...`** (إذا كان الخطأ بسبب اتجاه الرسم الطوبولوجي وتصادم الخطوط في مسار الشبكة).
      * **`الخطأ من الانفرت: ...`** (إذا كان الخطأ بسبب مناسيب قاع المطابق المسجلة في جدول البيانات ووجود ميل عكسي صاعد مع توضيح فرق المنسوب ونسبة الميل).
-4. **دعم كامل للغة العربية والمسارات:**
+5. **دعم كامل للغة العربية والمسارات:**
    - تعمل الأداة بسلاسة تامة مع المسارات العربية وقواعد البيانات والطبقات والحقول دون أي انهيار في الترميز.
-5. **معالجة المواسير التي لم تبدأ بنقطة منهل بسلاسة تامة ("تعمل تمام"):**
-   - نظام التقاط ثلاثي المستويات: دقيق $\rightarrow$ موسع $\rightarrow$ بديل سمات الماسورة.
-   - في حال عدم وجود نقطة منهل، يُنشأ السهم بنجاح وفقاً لاتجاه الرسم وتُوثق الحالة بـ `PARTIAL_START_MISSING`.
-6. **محاذاة مركز ثقل السهم** هندسياً ومماس المنحنيات اللحظي لمنع أي تشوه بصري.
-7. **تقرير ختامي ملخص ثنائي اللغة** يوضح الإحصائيات الهيدروليكية ونسبة الإنجاز بدقة.
+6. **معالجة المواسير التي لم تبدأ بنقطة منهل بسلاسة تامة ("تعمل تمام"):**
+   - نظام التقاط ثلاثي المستويات، وإن لم تتوفر نقطة يُنشأ السهم بنجاح وفقاً لاتجاه الرسم وتُوثق الحالة بـ `PARTIAL_START_MISSING`.
+7. **محاذاة مركز ثقل السهم** هندسياً ومماس المنحنيات اللحظي لمنع أي تشوه بصري.
+8. **تقرير ختامي ملخص ثنائي اللغة** يوضح الإحصائيات الهيدروليكية ونسبة الإنجاز بدقة.
 
 ---
 
@@ -326,15 +331,18 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 | **4** | **Arrow Base Width (Meters)** | Double | إجباري | عرض قاعدة مثلث السهم بالمتر (افتراضي: `2.0` م). |
 | **5** | **Arrow Height / Length (Meters)** | Double | إجباري | ارتفاع / طول السهم بالمتر (افتراضي: `5.0` م). |
 | **6** | **Transfer Pipe Attributes** | Boolean | اختياري | نقل سمات وبيانات المواسير الأصلية إلى طبقة الأسهم (افتراضي: `True`). |
-| **7** | **Optional Node/Manhole Points Layer** | Feature Layer (Point) | اختياري | طبقة نقاط المطابق الملحقة بنهايات المواسير (تُفعّل حساب المناسيب والميول). |
-| **8** | **Node Invert Elevation Field** | Field (Numeric) | اختياري | حقل منسوب القاع بالنقاط لحساب الميل المئوي وتوجيه السهم وفق الجاذبية. |
-| **9** | **Node Snapping Tolerance (Meters)** | Double | اختياري | مسافة البحث والالتقاط بالمتر لمطابقة نهايات المواسير مع المطابق (افتراضي: `1.5` م). |
-| **10** | **Arrow Placement Along Pipe** | String (Choice) | اختياري | موضع السهم: في المنتصف (`Midpoint (50%)`)، الربع الأول (`25%`)، أو الربع الأخير (`75%`). |
-| **11** | **Auto-Fix Reversed Pipes In-Place (Optional)** | Boolean | اختياري | إصلاح وعكس اتجاه رسم المواسير المعكوسة في الطبقة الأصلية مباشرة (افتراضي: `False`). |
-| **12** | **Swap Invert Attributes on Flipped Pipes** | Boolean | اختياري | تبديل قيم حقول مناسيب البداية والنهاية عند عكس الخطوط المعكوسة (افتراضي: `True`). |
-| **13** | **Generate Pipe Notes Layer (Pipe_Notes)** | Boolean | اختياري | إنشاء طبقة ملاحظات خطية مرافقة باسم `{input}_Notes` للملاحظات الهندسية (افتراضي: `True`). |
-| **14** | **Output Flow Arrows Layer** | Feature Class | مشتق (Derived) | مخرج برمجي آلي لربط طبقة الأسهم في نماذج ModelBuilder. |
-| **15** | **Output Pipe Notes Layer** | Feature Class | مشتق (Derived) | مخرج برمجي آلي لربط طبقة الملاحظات في نماذج ModelBuilder. |
+| **7** | **Invert Elevation Data Source** | String (Choice) | اختياري | مصدر بيانات المناسيب: `From Pipe Layer Attributes` أو `From Node / Manhole Layer` أو `None`. |
+| **8** | **Pipe Start Invert Field** | Field (Numeric) | اختياري | حقل منسوب بداية الماسورة بجدول المواسير (تعرف تلقائي: `START_INV`, `US_INV` ...). |
+| **9** | **Pipe End Invert Field** | Field (Numeric) | اختياري | حقل منسوب نهاية الماسورة بجدول المواسير (تعرف تلقائي: `END_INV`, `DS_INV` ...). |
+| **10** | **Optional Node/Manhole Points Layer** | Feature Layer (Point) | اختياري | طبقة نقاط المطابق الملحقة بنهايات المواسير (تُفعّل في وضع Node Snapping). |
+| **11** | **Node Invert Elevation Field** | Field (Numeric) | اختياري | حقل منسوب القاع بالنقاط لحساب الميل المئوي وتوجيه السهم وفق الجاذبية. |
+| **12** | **Node Snapping Tolerance (Meters)** | Double | اختياري | مسافة البحث والالتقاط بالمتر لمطابقة نهايات المواسير مع المطابق (افتراضي: `1.5` م). |
+| **13** | **Arrow Placement Along Pipe** | String (Choice) | اختياري | موضع السهم: في المنتصف (`Midpoint (50%)`)، الربع الأول (`25%`)، أو الربع الأخير (`75%`). |
+| **14** | **Auto-Fix Reversed Pipes In-Place (Optional)** | Boolean | اختياري | إصلاح وعكس اتجاه رسم المواسير المعكوسة في الطبقة الأصلية مباشرة (افتراضي: `False`). |
+| **15** | **Swap Invert Attributes on Flipped Pipes** | Boolean | اختياري | تبديل قيم حقول مناسيب البداية والنهاية عند عكس الخطوط المعكوسة (افتراضي: `True`). |
+| **16** | **Generate Pipe Notes Layer (Pipe_Notes)** | Boolean | اختياري | إنشاء طبقة ملاحظات خطية مرافقة باسم `{input}_Notes` للملاحظات الهندسية (افتراضي: `True`). |
+| **17** | **Execution Summary Report** | String | مشتق (Derived) | تقرير نصي شامل ثنائي اللغة يوثق نتائج التحليل في نافذة الرسائل. |
+| **18** | **Output QA Notes Layer** | Feature Class | مشتق (Derived) | مخرج برمجي آلي لربط طبقة الملاحظات في نماذج ModelBuilder. |
 
 ---
 
