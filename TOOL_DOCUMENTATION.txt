@@ -156,9 +156,12 @@
 - ORIG_FID: المعرف الفريد للماسورة المعيبة.
 - DEFECT_TYPE: نوع الخلل الهندسي: REVERSED_INVERT_SLOPE (معكوسة في تحديد الانفرت)، REVERSED_DRAWING_TOPOLOGY (معكوسة في الرسم)، ZERO_SLOPE (مستوية بدون انحدار).
 - SEVERITY: درجة الخطورة (CRITICAL_ERROR / WARNING).
-- NOTES: تشخيص صريح لمصدر الخلل بعبارة عربية واضحة ومباشرة:
+- NOTES_AR: تشخيص صريح لمصدر الخلل باللغة العربية بعبارة هندسية واضحة ومباشرة:
   * "الخطأ من الرسم: الماسورة مرسومة بالاتجاه المعاكس لمسار الشبكة... / يجب عكس اتجاه رسم الماسورة أو تفعيل Auto-Fix"
   * "الخطأ من الانفرت: منسوب البداية أقل من النهاية / ميل عكسي صاعد... مع توضيح فرق المنسوب ونسبة الميل"
+- NOTES_EN: تشخيص صريح لمصدر الخلل باللغة الإنجليزية:
+  * "Drawing Error: Pipe digitized against network flow (Head-to-Head collision / Tail-to-Tail divergence) / Reverse line or enable Auto-Fix"
+  * "Invert Error: Start invert < End invert / Adverse slope ... with head drop and slope percentage"
 - DEFECT_DESC: شرح وافٍ لطبيعة المشكلة وسبب رصدها.
 - RECOMMENDED_ACTION: التوصية الهندسية والإجراء التصحيحي الواجب اتخاذه من قبل المهندس أو المساح.
 - START_INV / END_INV: منسوب قاع البداية والنهاية.

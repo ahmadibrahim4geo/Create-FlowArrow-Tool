@@ -810,8 +810,11 @@ class CreateFlowArrow(object):
                                     qa_status = u"REVERSED / ADVERSE SLOPE (Audit Mode): Arrow reflects actual uphill digitization (Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
 
                                 # Register defect for QA Notes (Reversed in Invert Determination)
-                                notes_diag = u"الخطأ من الانفرت: منسوب البداية ({:.3f}م) أقل من النهاية ({:.3f}م) / ميل عكسي صاعد {:.2f}%".format(
+                                notes_diag_ar = u"الخطأ من الانفرت: منسوب البداية ({:.3f}م) أقل من النهاية ({:.3f}م) / ميل عكسي صاعد {:.2f}%".format(
                                     st_inv, end_inv, abs(slope_pct or 0.0)
+                                )
+                                notes_diag_en = u"Invert Error: Start invert ({:.3f}m) < End invert ({:.3f}m) / Adverse slope {:+.2f}%".format(
+                                    st_inv, end_inv, slope_pct or 0.0
                                 )
                                 desc_diag = u"ماسورة ذات ميل عكسي صاعد (Adverse Slope: Drop={:+.3f}م, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
                                 act_diag = u"تحقق من مناسيب قاع المطابق (Inverts) في جدول البيانات أو فعّل خيار 'Auto-Fix' لتصحيح اتجاه الرسم."
@@ -821,7 +824,9 @@ class CreateFlowArrow(object):
                                     "orig_fid": orig_fid,
                                     "defect_type": "REVERSED_INVERT_SLOPE",
                                     "severity": "CRITICAL_ERROR",
-                                    "notes": notes_diag,
+                                    "notes_ar": notes_diag_ar,
+                                    "notes_en": notes_diag_en,
+                                    "notes": notes_diag_ar,
                                     "defect_desc": desc_diag,
                                     "action": act_diag,
                                     "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
@@ -833,7 +838,8 @@ class CreateFlowArrow(object):
                                 qa_status = u"Flat Pipe (Zero Invert Drop / Slope=0.00%)"
                                 flat_count += 1
 
-                                notes_flat = u"الخطأ من الانفرت: ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Slope=0.00%)"
+                                notes_flat_ar = u"الخطأ من الانفرت: ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Slope=0.00%)"
+                                notes_flat_en = u"Invert Error: Completely flat pipe with zero hydraulic head drop (Slope=0.00%)"
                                 desc_flat = u"ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Zero Invert Drop)"
                                 act_flat = u"تحقق من مناسيب قاع المطابق للماسورة في المخططات التصميمية."
 
@@ -842,7 +848,9 @@ class CreateFlowArrow(object):
                                     "orig_fid": orig_fid,
                                     "defect_type": "ZERO_SLOPE",
                                     "severity": "WARNING",
-                                    "notes": notes_flat,
+                                    "notes_ar": notes_flat_ar,
+                                    "notes_en": notes_flat_en,
+                                    "notes": notes_flat_ar,
                                     "defect_desc": desc_flat,
                                     "action": act_flat,
                                     "st_inv": st_inv, "end_inv": end_inv, "drop_m": 0.0, "slope_pct": 0.0,
@@ -878,11 +886,13 @@ class CreateFlowArrow(object):
                     if topo_status in ("HEAD_TO_HEAD_COLLISION", "TAIL_TO_TAIL_DIVERGENCE"):
                         if not any(d["orig_fid"] == orig_fid for d in flagged_defects):
                             if topo_status == "HEAD_TO_HEAD_COLLISION":
-                                notes_topo = u"الخطأ من الرسم: الماسورة مرسومة بالاتجاه المعاكس لمسار الشبكة (تصادم رأساً لرأس عند المنهل) / يجب عكس اتجاه رسم الماسورة أو تفعيل Auto-Fix"
+                                notes_topo_ar = u"الخطأ من الرسم: الماسورة مرسومة بالاتجاه المعاكس لمسار الشبكة (تصادم رأساً لرأس عند المنهل) / يجب عكس اتجاه رسم الماسورة أو تفعيل Auto-Fix"
+                                notes_topo_en = u"Drawing Error: Pipe digitized against network flow (Head-to-Head collision at manhole) / Reverse line or enable Auto-Fix"
                                 desc_coll = u"ماسورة معكوسة في الرسم: تصادم رأساً لرأس مع ماسورة أخرى عند نفس المنهل دون مخرج downstream"
                                 act_coll = u"تحقق من اتجاه رسم الماسورة وعكس خط الرسم ليتوافق مع مسار الشبكة، أو تفعيل Auto-Fix."
                             else:
-                                notes_topo = u"الخطأ من الرسم: الماسورة مرسومة بالاتجاه المعاكس لمسار الشبكة (تباعد ظهراً لظهر عند المنهل) / يجب عكس اتجاه رسم الماسورة أو تفعيل Auto-Fix"
+                                notes_topo_ar = u"الخطأ من الرسم: الماسورة مرسومة بالاتجاه المعاكس لمسار الشبكة (تباعد ظهراً لظهر عند المنهل) / يجب عكس اتجاه رسم الماسورة أو تفعيل Auto-Fix"
+                                notes_topo_en = u"Drawing Error: Pipe digitized against network flow (Tail-to-Tail divergence at manhole) / Reverse line or enable Auto-Fix"
                                 desc_coll = u"ماسورة معكوسة في الرسم: تباعد ظهراً لظهر مع ماسورة أخرى عند نفس المنهل دون تغذية upstream"
                                 act_coll = u"تحقق من اتجاه رسم إحدى الماسورتين المتفرعتين من المنهل المشترك، أو تفعيل Auto-Fix."
 
@@ -891,7 +901,9 @@ class CreateFlowArrow(object):
                                 "orig_fid": orig_fid,
                                 "defect_type": "REVERSED_DRAWING_TOPOLOGY",
                                 "severity": "WARNING",
-                                "notes": notes_topo,
+                                "notes_ar": notes_topo_ar,
+                                "notes_en": notes_topo_en,
+                                "notes": notes_topo_ar,
                                 "defect_desc": desc_coll,
                                 "action": act_coll,
                                 "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
@@ -1019,7 +1031,8 @@ class CreateFlowArrow(object):
                 arcpy.AddField_management(qa_notes_layer, "ORIG_FID", "LONG", field_alias="Original Pipe FID / رقم الماسورة الأصلية")
                 arcpy.AddField_management(qa_notes_layer, "DEFECT_TYPE", "TEXT", field_length=50, field_alias="Defect Category / نوع الخلل")
                 arcpy.AddField_management(qa_notes_layer, "SEVERITY", "TEXT", field_length=25, field_alias="Severity Level / درجة الخطورة")
-                arcpy.AddField_management(qa_notes_layer, "NOTES", "TEXT", field_length=255, field_alias="Engineering Notes / الملاحظات الهندسية")
+                arcpy.AddField_management(qa_notes_layer, "NOTES_AR", "TEXT", field_length=255, field_alias="Arabic Notes / الملاحظات باللغة العربية")
+                arcpy.AddField_management(qa_notes_layer, "NOTES_EN", "TEXT", field_length=255, field_alias="English Notes / الملاحظات باللغة الإنجليزية")
                 arcpy.AddField_management(qa_notes_layer, "DEFECT_DESC", "TEXT", field_length=255, field_alias="Defect Description / وصف الخلل الهندسي")
                 arcpy.AddField_management(qa_notes_layer, "RECOMMENDED_ACTION", "TEXT", field_length=255, field_alias="Recommended Action / الإجراء المقترح للتصحيح")
                 arcpy.AddField_management(qa_notes_layer, "START_INV", "DOUBLE", field_alias="Start Invert / منسوب البداية")
@@ -1033,7 +1046,7 @@ class CreateFlowArrow(object):
                 qa_copied_fields = []
                 if transfer_attributes:
                     qa_managed = {
-                        "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "NOTES", "DEFECT_DESC",
+                        "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "NOTES_AR", "NOTES_EN", "NOTES", "DEFECT_DESC",
                         "RECOMMENDED_ACTION", "START_INV", "END_INV", "DROP_M",
                         "SLOPE_PCT", "PIPE_LEN", "TOPOLOGY"
                     }
@@ -1058,7 +1071,7 @@ class CreateFlowArrow(object):
                             pass
 
                 qa_insert_fields = [
-                    "SHAPE@", "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "NOTES",
+                    "SHAPE@", "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "NOTES_AR", "NOTES_EN",
                     "DEFECT_DESC", "RECOMMENDED_ACTION", "START_INV", "END_INV",
                     "DROP_M", "SLOPE_PCT", "PIPE_LEN", "TOPOLOGY"
                 ] + qa_copied_fields
@@ -1075,7 +1088,8 @@ class CreateFlowArrow(object):
 
                         qa_row = [
                             defect["geom"], defect["orig_fid"], defect["defect_type"], defect["severity"],
-                            defect.get("notes", defect["defect_desc"]),
+                            defect.get("notes_ar", defect.get("notes", defect["defect_desc"])),
+                            defect.get("notes_en", defect.get("defect_desc_en", "")),
                             defect["defect_desc"], defect["action"], defect["st_inv"], defect["end_inv"],
                             defect["drop_m"], defect["slope_pct"], defect["pipe_len"], defect["topology"]
                         ] + matched_attrs

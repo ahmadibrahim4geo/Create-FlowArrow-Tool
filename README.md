@@ -206,7 +206,8 @@ flowchart TD
 | `ORIG_FID` | LONG | Original pipe feature ObjectID / FID. |
 | `DEFECT_TYPE` | TEXT (50) | Defect category: `REVERSED_INVERT_SLOPE`, `REVERSED_DRAWING_TOPOLOGY`, `ZERO_SLOPE`. |
 | `SEVERITY` | TEXT (25) | Severity level: `CRITICAL_ERROR`, `WARNING`. |
-| `NOTES` | TEXT (255) | Explicit diagnostic note distinguishing drawing vs invert errors: `الخطأ من الرسم: ...` or `الخطأ من الانفرت: ...`. |
+| `NOTES_AR` | TEXT (255) | Explicit diagnostic note in Arabic: `الخطأ من الرسم: ...` or `الخطأ من الانفرت: ...`. |
+| `NOTES_EN` | TEXT (255) | Explicit diagnostic note in English: `Drawing Error: ...` or `Invert Error: ...`. |
 | `DEFECT_DESC` | TEXT (255) | Detailed engineering defect diagnosis (bilingual). |
 | `RECOMMENDED_ACTION` | TEXT (255) | Specific corrective engineering action to fix the defect. |
 | `START_INV` / `END_INV` | DOUBLE | Upstream & downstream invert elevations. |
@@ -360,7 +361,8 @@ The repository includes a ready-to-use dataset in the `data/` directory:
 | `ORIG_FID` | LONG | المعرف الفريد للماسورة الأصلية. |
 | `DEFECT_TYPE` | TEXT (50) | تصنيف الخلل: `REVERSED_INVERT_SLOPE` (معكوسة في تحديد الانفرت)، `REVERSED_DRAWING_TOPOLOGY` (معكوسة في الرسم)، `ZERO_SLOPE` (مستوية بدون انحدار). |
 | `SEVERITY` | TEXT (25) | درجة الخطورة: `CRITICAL_ERROR`, `WARNING`. |
-| `NOTES` | TEXT (255) | تشخيص صريح لمصدر الخلل: "الخطأ من الرسم: ..." أو "الخطأ من الانفرت: ...". |
+| `NOTES_AR` | TEXT (255) | تشخيص صريح باللغة العربية لمصدر الخلل: "الخطأ من الرسم: ..." أو "الخطأ من الانفرت: ...". |
+| `NOTES_EN` | TEXT (255) | تشخيص صريح باللغة الإنجليزية لمصدر الخلل: "Drawing Error: ..." أو "Invert Error: ...". |
 | `DEFECT_DESC` | TEXT (255) | تشخيص هندسي تفصيلي ثنائي اللغة للخلل. |
 | `RECOMMENDED_ACTION` | TEXT (255) | الإجراء التصحيحي الهندسي الموصى به لمعالجة الخلل. |
 | `START_INV` / `END_INV` | DOUBLE | منسوب قاع البداية والنهاية. |
@@ -379,7 +381,7 @@ QA/QC Alert: Identified X pipe(s) with adverse/reversed slope. Arrows oriented a
 > [!NOTE]
 > **هذا ليس خطأ برمجياً على الإطلاق!**
 > الأداة نجحت بنسبة 100% وأنتجت الطبقة وأضافتها للخريطة. في بيئة ArcGIS، أي أداة تصدر إشعار تدقيق هندسي تحذيري (`arcpy.AddWarning`) تُظهر أيقونة المثلث الأصفر لإلفات نظر المهندس.
-> في **وضع التدقيق (Audit Mode)**، تظهر الأسهم على المواسير المعكوسة متجهة للأعلى (عكس الجاذبية كما رُسمت) ليرى المهندس الخلل بالعين المجردة، كما تُنشئ الأداة طبقة ملاحظات مرافقة تتبع اسم طبقة الإدخال (`{input}_Notes`) تبرز هذه المواسير مع حقل `NOTES` يوضح ما إذا كان الخلل من الرسم أو من المناسيب. وإذا أردت أن تقوم الأداة بعكس وتصحيح اتجاه رسم خطوط المواسير الأصلية نفسها في مكانها، ما عليك سوى تفعيل خيار **Auto-Fix Reversed Pipes In-Place** الموجود مباشرة فوق خيار توليد الملاحظات وإعادة التشغيل.
+> في **وضع التدقيق (Audit Mode)**، تظهر الأسهم على المواسير المعكوسة متجهة للأعلى (عكس الجاذبية كما رُسمت) ليرى المهندس الخلل بالعين المجردة، كما تُنشئ الأداة طبقة ملاحظات مرافقة تتبع اسم طبقة الإدخال (`{input}_Notes`) تبرز هذه المواسير مع حقلي ملاحظات منفصلين `NOTES_AR` (باللغة العربية) و `NOTES_EN` (باللغة الإنجليزية) يوضحان بدقة ما إذا كان الخلل من الرسم أو من المناسيب. وإذا أردت أن تقوم الأداة بعكس وتصحيح اتجاه رسم خطوط المواسير الأصلية نفسها في مكانها، ما عليك سوى تفعيل خيار **Auto-Fix Reversed Pipes In-Place** الموجود مباشرة فوق خيار توليد الملاحظات وإعادة التشغيل.
 
 ---
 
