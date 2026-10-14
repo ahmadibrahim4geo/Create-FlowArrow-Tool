@@ -336,38 +336,38 @@ class CreateFlowArrow(object):
         param8.parameterDependencies = [param7.name]
         param8.enabled = False
 
-        # 9. Auto-Flip Reversed Pipe Lines
+        # 9. Node Snapping Tolerance (Meters)
         param9 = arcpy.Parameter(
-            displayName="Auto-Flip Reversed Pipe Lines (In-Place)",
-            name="flip_reversed_pipes",
-            datatype="GPBoolean",
-            parameterType="Optional",
-            direction="Input"
-        )
-        param9.value = False
-        param9.enabled = False
-
-        # 10. Node Snapping Tolerance (Meters)
-        param10 = arcpy.Parameter(
             displayName="Node Snapping Tolerance (Meters)",
             name="search_tolerance",
             datatype="GPDouble",
             parameterType="Optional",
             direction="Input"
         )
-        param10.value = 1.5
-        param10.enabled = False
+        param9.value = 1.5
+        param9.enabled = False
 
-        # 11. Arrow Placement Along Pipe
-        param11 = arcpy.Parameter(
+        # 10. Arrow Placement Along Pipe
+        param10 = arcpy.Parameter(
             displayName="Arrow Placement Along Pipe",
             name="arrow_placement",
             datatype="GPString",
             parameterType="Optional",
             direction="Input"
         )
-        param11.filter.list = ["Midpoint (50%)", "Quarter (25%)", "Three-Quarters (75%)"]
-        param11.value = "Midpoint (50%)"
+        param10.filter.list = ["Midpoint (50%)", "Quarter (25%)", "Three-Quarters (75%)"]
+        param10.value = "Midpoint (50%)"
+
+        # 11. Auto-Fix Reversed Pipes In-Place (Optional)
+        param11 = arcpy.Parameter(
+            displayName="Auto-Fix Reversed Pipes In-Place (Optional)",
+            name="flip_reversed_pipes",
+            datatype="GPBoolean",
+            parameterType="Optional",
+            direction="Input"
+        )
+        param11.value = False
+        param11.enabled = True
 
         # 12. Swap Invert Attributes on Flip
         param12 = arcpy.Parameter(
@@ -380,9 +380,9 @@ class CreateFlowArrow(object):
         param12.value = True
         param12.enabled = False
 
-        # 13. Generate QA/QC Notes Layer
+        # 13. Generate Pipe Notes Layer (Pipe_Notes)
         param13 = arcpy.Parameter(
-            displayName="Generate QA/QC Audit Notes Layer",
+            displayName="Generate Pipe Notes Layer (Pipe_Notes)",
             name="generate_qa_notes",
             datatype="GPBoolean",
             parameterType="Optional",
@@ -402,7 +402,7 @@ class CreateFlowArrow(object):
 
         # 15. Derived Output (QA Notes Feature Class)
         param15 = arcpy.Parameter(
-            displayName="Output QA Notes Layer",
+            displayName="Output Pipe Notes Layer",
             name="output_qa_notes",
             datatype="DEFeatureClass",
             parameterType="Derived",
@@ -425,15 +425,12 @@ class CreateFlowArrow(object):
         if parameters[7].value:
             parameters[8].enabled = True
             parameters[9].enabled = True
-            parameters[10].enabled = True
         else:
             parameters[8].enabled = False
             parameters[9].enabled = False
-            parameters[10].enabled = False
             parameters[8].value = None
-            parameters[9].value = False
 
-        if parameters[9].value:
+        if parameters[11].value:
             parameters[12].enabled = True
         else:
             parameters[12].enabled = False
@@ -447,8 +444,8 @@ class CreateFlowArrow(object):
             parameters[4].setErrorMessage("Arrow Base Width must be greater than zero.")
         if parameters[5].value and parameters[5].value <= 0:
             parameters[5].setErrorMessage("Arrow Height must be greater than zero.")
-        if parameters[10].value and parameters[10].value <= 0:
-            parameters[10].setErrorMessage("Search tolerance must be greater than zero.")
+        if parameters[9].value and parameters[9].value <= 0:
+            parameters[9].setErrorMessage("Search tolerance must be greater than zero.")
 
     def execute(self, parameters, messages):
         """Execute the tool with full Arabic path/data support, Audit Mode, and QA Notes."""
@@ -464,9 +461,9 @@ class CreateFlowArrow(object):
 
         point_layer = to_unicode(parameters[7].valueAsText) if parameters[7].value else None
         invert_field = to_unicode(parameters[8].valueAsText) if parameters[8].value else None
-        flip_reversed_pipes = bool(parameters[9].value) if parameters[9].value else False
-        search_tolerance = float(parameters[10].value) if parameters[10].value else 1.5
-        arrow_placement = to_unicode(parameters[11].valueAsText or "Midpoint (50%)")
+        search_tolerance = float(parameters[9].value) if parameters[9].value else 1.5
+        arrow_placement = to_unicode(parameters[10].valueAsText or "Midpoint (50%)")
+        flip_reversed_pipes = bool(parameters[11].value) if parameters[11].value else False
         swap_invert_fields = bool(parameters[12].value) if parameters[12].value is not None else True
         generate_qa_notes = bool(parameters[13].value) if parameters[13].value is not None else True
 
@@ -480,7 +477,21 @@ class CreateFlowArrow(object):
             return
 
         output_layer = os.path.join(output_workspace, output_layer_name)
-        qa_notes_layer = os.path.join(output_workspace, output_layer_name + u"_QA_Notes")
+
+        input_base = "Pipe"
+        try:
+            desc_in = arcpy.Describe(input_layer)
+            if hasattr(desc_in, "baseName") and desc_in.baseName:
+                input_base = desc_in.baseName
+            elif hasattr(desc_in, "name") and desc_in.name:
+                input_base = os.path.splitext(desc_in.name)[0]
+        except Exception:
+            input_base = "Pipe"
+
+        valid_notes_base = arcpy.ValidateTableName(u"{}_Notes".format(input_base), output_workspace)
+        if not valid_notes_base:
+            valid_notes_base = "Pipe_Notes"
+        qa_notes_layer = os.path.join(output_workspace, valid_notes_base)
 
         if arcpy.Exists(output_layer):
             try:
@@ -799,13 +810,20 @@ class CreateFlowArrow(object):
                                     qa_status = u"REVERSED / ADVERSE SLOPE (Audit Mode): Arrow reflects actual uphill digitization (Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
 
                                 # Register defect for QA Notes (Reversed in Invert Determination)
+                                notes_diag = u"الخطأ من الانفرت: منسوب البداية ({:.3f}م) أقل من النهاية ({:.3f}م) / ميل عكسي صاعد {:.2f}%".format(
+                                    st_inv, end_inv, abs(slope_pct or 0.0)
+                                )
+                                desc_diag = u"ماسورة ذات ميل عكسي صاعد (Adverse Slope: Drop={:+.3f}م, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
+                                act_diag = u"تحقق من مناسيب قاع المطابق (Inverts) في جدول البيانات أو فعّل خيار 'Auto-Fix' لتصحيح اتجاه الرسم."
+
                                 flagged_defects.append({
                                     "geom": line,
                                     "orig_fid": orig_fid,
                                     "defect_type": "REVERSED_INVERT_SLOPE",
                                     "severity": "CRITICAL_ERROR",
-                                    "defect_desc": u"ماسورة معكوسة في تحديد الانفرت (Adverse Slope: Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0),
-                                    "action": u"تحقق من مناسيب قاع المطابق أو فعّل خيار 'Auto-Flip' لعكس اتجاه رسم الماسورة هندسياً.",
+                                    "notes": notes_diag,
+                                    "defect_desc": desc_diag,
+                                    "action": act_diag,
                                     "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
                                     "pipe_len": pipe_len, "topology": topo_status,
                                     "attrs": attr_values
@@ -815,13 +833,18 @@ class CreateFlowArrow(object):
                                 qa_status = u"Flat Pipe (Zero Invert Drop / Slope=0.00%)"
                                 flat_count += 1
 
+                                notes_flat = u"الخطأ من الانفرت: ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Slope=0.00%)"
+                                desc_flat = u"ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Zero Invert Drop)"
+                                act_flat = u"تحقق من مناسيب قاع المطابق للماسورة في المخططات التصميمية."
+
                                 flagged_defects.append({
                                     "geom": line,
                                     "orig_fid": orig_fid,
                                     "defect_type": "ZERO_SLOPE",
                                     "severity": "WARNING",
-                                    "defect_desc": u"ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Zero Invert Drop)",
-                                    "action": u"تحقق من مناسيب قاع المطابق للماسورة في المخططات التصميمية.",
+                                    "notes": notes_flat,
+                                    "defect_desc": desc_flat,
+                                    "action": act_flat,
                                     "st_inv": st_inv, "end_inv": end_inv, "drop_m": 0.0, "slope_pct": 0.0,
                                     "pipe_len": pipe_len, "topology": topo_status,
                                     "attrs": attr_values
@@ -831,7 +854,7 @@ class CreateFlowArrow(object):
                         elif st_inv is None and end_inv is not None:
                             end_inv = round(end_inv, 4)
                             qa_severity = "PARTIAL_START_MISSING"
-                            qa_status = u"Natural Flow: Start to End (Start Node Missing / End Node={:.3f}m)".format(end_inv)
+                            qa_status = u"Natural Flow: Start to End (Start Node Missing / End Node={:.3f}م)".format(end_inv)
                             partial_count += 1
                             start_missing_count += 1
 
@@ -839,7 +862,7 @@ class CreateFlowArrow(object):
                         elif st_inv is not None and end_inv is None:
                             st_inv = round(st_inv, 4)
                             qa_severity = "PARTIAL_END_MISSING"
-                            qa_status = u"Natural Flow: Start to End (Start Node={:.3f}m / End Node Missing)".format(st_inv)
+                            qa_status = u"Natural Flow: Start to End (Start Node={:.3f}م / End Node Missing)".format(st_inv)
                             partial_count += 1
                             end_missing_count += 1
 
@@ -855,17 +878,20 @@ class CreateFlowArrow(object):
                     if topo_status in ("HEAD_TO_HEAD_COLLISION", "TAIL_TO_TAIL_DIVERGENCE"):
                         if not any(d["orig_fid"] == orig_fid for d in flagged_defects):
                             if topo_status == "HEAD_TO_HEAD_COLLISION":
+                                notes_topo = u"الخطأ من الرسم: الماسورة مرسومة بالاتجاه المعاكس لمسار الشبكة (تصادم رأساً لرأس عند المنهل) / يجب عكس اتجاه رسم الماسورة أو تفعيل Auto-Fix"
                                 desc_coll = u"ماسورة معكوسة في الرسم: تصادم رأساً لرأس مع ماسورة أخرى عند نفس المنهل دون مخرج downstream"
-                                act_coll = u"تحقق من اتجاه رسم الماسورة وعكس خط الرسم ليتوافق مع مسار الشبكة."
+                                act_coll = u"تحقق من اتجاه رسم الماسورة وعكس خط الرسم ليتوافق مع مسار الشبكة، أو تفعيل Auto-Fix."
                             else:
+                                notes_topo = u"الخطأ من الرسم: الماسورة مرسومة بالاتجاه المعاكس لمسار الشبكة (تباعد ظهراً لظهر عند المنهل) / يجب عكس اتجاه رسم الماسورة أو تفعيل Auto-Fix"
                                 desc_coll = u"ماسورة معكوسة في الرسم: تباعد ظهراً لظهر مع ماسورة أخرى عند نفس المنهل دون تغذية upstream"
-                                act_coll = u"تحقق من اتجاه رسم إحدى الماسورتين المتفرعتين من المنهل المشترك."
+                                act_coll = u"تحقق من اتجاه رسم إحدى الماسورتين المتفرعتين من المنهل المشترك، أو تفعيل Auto-Fix."
 
                             flagged_defects.append({
                                 "geom": line,
                                 "orig_fid": orig_fid,
                                 "defect_type": "REVERSED_DRAWING_TOPOLOGY",
                                 "severity": "WARNING",
+                                "notes": notes_topo,
                                 "defect_desc": desc_coll,
                                 "action": act_coll,
                                 "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
@@ -993,6 +1019,7 @@ class CreateFlowArrow(object):
                 arcpy.AddField_management(qa_notes_layer, "ORIG_FID", "LONG", field_alias="Original Pipe FID / رقم الماسورة الأصلية")
                 arcpy.AddField_management(qa_notes_layer, "DEFECT_TYPE", "TEXT", field_length=50, field_alias="Defect Category / نوع الخلل")
                 arcpy.AddField_management(qa_notes_layer, "SEVERITY", "TEXT", field_length=25, field_alias="Severity Level / درجة الخطورة")
+                arcpy.AddField_management(qa_notes_layer, "NOTES", "TEXT", field_length=255, field_alias="Engineering Notes / الملاحظات الهندسية")
                 arcpy.AddField_management(qa_notes_layer, "DEFECT_DESC", "TEXT", field_length=255, field_alias="Defect Description / وصف الخلل الهندسي")
                 arcpy.AddField_management(qa_notes_layer, "RECOMMENDED_ACTION", "TEXT", field_length=255, field_alias="Recommended Action / الإجراء المقترح للتصحيح")
                 arcpy.AddField_management(qa_notes_layer, "START_INV", "DOUBLE", field_alias="Start Invert / منسوب البداية")
@@ -1006,7 +1033,7 @@ class CreateFlowArrow(object):
                 qa_copied_fields = []
                 if transfer_attributes:
                     qa_managed = {
-                        "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "DEFECT_DESC",
+                        "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "NOTES", "DEFECT_DESC",
                         "RECOMMENDED_ACTION", "START_INV", "END_INV", "DROP_M",
                         "SLOPE_PCT", "PIPE_LEN", "TOPOLOGY"
                     }
@@ -1031,7 +1058,7 @@ class CreateFlowArrow(object):
                             pass
 
                 qa_insert_fields = [
-                    "SHAPE@", "ORIG_FID", "DEFECT_TYPE", "SEVERITY",
+                    "SHAPE@", "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "NOTES",
                     "DEFECT_DESC", "RECOMMENDED_ACTION", "START_INV", "END_INV",
                     "DROP_M", "SLOPE_PCT", "PIPE_LEN", "TOPOLOGY"
                 ] + qa_copied_fields
@@ -1048,6 +1075,7 @@ class CreateFlowArrow(object):
 
                         qa_row = [
                             defect["geom"], defect["orig_fid"], defect["defect_type"], defect["severity"],
+                            defect.get("notes", defect["defect_desc"]),
                             defect["defect_desc"], defect["action"], defect["st_inv"], defect["end_inv"],
                             defect["drop_m"], defect["slope_pct"], defect["pipe_len"], defect["topology"]
                         ] + matched_attrs

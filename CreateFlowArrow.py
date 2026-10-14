@@ -340,7 +340,22 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
         return None
 
     output_layer = os.path.join(output_workspace, output_layer_name)
-    qa_notes_layer = os.path.join(output_workspace, output_layer_name + u"_QA_Notes")
+
+    input_base = u""
+    try:
+        desc_in = arcpy.Describe(input_layer)
+        input_base = to_unicode(desc_in.baseName)
+    except Exception:
+        input_base = to_unicode(os.path.splitext(os.path.basename(input_layer))[0])
+
+    if not input_base:
+        input_base = u"Pipe"
+    raw_notes_name = u"{}_Notes".format(input_base)
+    try:
+        valid_notes_name = arcpy.ValidateTableName(raw_notes_name, output_workspace)
+    except Exception:
+        valid_notes_name = raw_notes_name
+    qa_notes_layer = os.path.join(output_workspace, valid_notes_name)
 
     if arcpy.Exists(output_layer):
         try:
@@ -658,13 +673,15 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                                 qa_status = u"REVERSED / ADVERSE SLOPE (Audit Mode): Arrow reflects actual uphill digitization (Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0)
 
                             # Register defect for QA Notes (Reversed in Invert Determination)
+                            notes_inv = u"الخطأ من الانفرت: منسوب البداية ({:.3f}م) أقل من النهاية ({:.3f}م) / ميل عكسي صاعد {:.2f}% (فرق المنسوب={:+.3f}م)".format(st_inv, end_inv, slope_pct or 0.0, inv_drop)
                             flagged_defects.append({
                                 "geom": line,
                                 "orig_fid": orig_fid,
                                 "defect_type": "REVERSED_INVERT_SLOPE",
                                 "severity": "CRITICAL_ERROR",
-                                "defect_desc": u"ماسورة معكوسة في تحديد الانفرت (Adverse Slope: Drop={:+.3f}m, Slope={:.2f}%)".format(inv_drop, slope_pct or 0.0),
-                                "action": u"تحقق من مناسيب قاع المطابق أو فعّل خيار 'Auto-Flip' لعكس اتجاه رسم الماسورة هندسياً.",
+                                "notes": notes_inv,
+                                "defect_desc": u"الخطأ من الانفرت: ميل عكسي صاعد ضد الجاذبية (Start={:.3f}m < End={:.3f}m, Drop={:+.3f}m, Slope={:.2f}%)".format(st_inv, end_inv, inv_drop, slope_pct or 0.0),
+                                "action": u"تحقق من مناسيب قاع المطابق أو فعّل خيار 'Auto-Fix' لعكس اتجاه رسم الماسورة هندسياً.",
                                 "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
                                 "pipe_len": pipe_len, "topology": topo_status,
                                 "attrs": attr_values
@@ -679,6 +696,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                                 "orig_fid": orig_fid,
                                 "defect_type": "ZERO_SLOPE",
                                 "severity": "WARNING",
+                                "notes": u"الخطأ من الانفرت: ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Start={:.3f}م, End={:.3f}م, Slope=0.00%)".format(st_inv, end_inv),
                                 "defect_desc": u"ماسورة مستوية تماماً بدون فرق منسوب هيدروليكي (Zero Invert Drop)",
                                 "action": u"تحقق من مناسيب قاع المطابق للماسورة في المخططات التصميمية.",
                                 "st_inv": st_inv, "end_inv": end_inv, "drop_m": 0.0, "slope_pct": 0.0,
@@ -714,17 +732,20 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                 if topo_status in ("HEAD_TO_HEAD_COLLISION", "TAIL_TO_TAIL_DIVERGENCE"):
                     if not any(d["orig_fid"] == orig_fid for d in flagged_defects):
                         if topo_status == "HEAD_TO_HEAD_COLLISION":
-                            desc_coll = u"ماسورة معكوسة في الرسم: تصادم رأساً لرأس مع ماسورة أخرى عند نفس المنهل دون مخرج downstream"
+                            desc_coll = u"الخطأ من الرسم: تصادم رأساً لرأس مع ماسورة أخرى عند نفس المنهل دون مخرج downstream"
                             act_coll = u"تحقق من اتجاه رسم الماسورة وعكس خط الرسم ليتوافق مع مسار الشبكة."
+                            notes_coll = u"الخطأ من الرسم: الماسورة مرسومة بالاتجاه المعاكس / يجب عكس اتجاه رسم الماسورة أو تفعيل Auto-Fix"
                         else:
-                            desc_coll = u"ماسورة معكوسة في الرسم: تباعد ظهراً لظهر مع ماسورة أخرى عند نفس المنهل دون تغذية upstream"
+                            desc_coll = u"الخطأ من الرسم: تباعد ظهراً لظهر مع ماسورة أخرى عند نفس المنهل دون تغذية upstream"
                             act_coll = u"تحقق من اتجاه رسم إحدى الماسورتين المتفرعتين من المنهل المشترك."
+                            notes_coll = u"الخطأ من الرسم: تباعد مصبات ظهراً لظهر / تحقق من اتجاه رسم الخط"
 
                         flagged_defects.append({
                             "geom": line,
                             "orig_fid": orig_fid,
                             "defect_type": "REVERSED_DRAWING_TOPOLOGY",
                             "severity": "WARNING",
+                            "notes": notes_coll,
                             "defect_desc": desc_coll,
                             "action": act_coll,
                             "st_inv": st_inv, "end_inv": end_inv, "drop_m": inv_drop, "slope_pct": slope_pct,
@@ -856,6 +877,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
             arcpy.AddField_management(qa_notes_layer, "ORIG_FID", "LONG", field_alias="Original Pipe FID / رقم الماسورة الأصلية")
             arcpy.AddField_management(qa_notes_layer, "DEFECT_TYPE", "TEXT", field_length=50, field_alias="Defect Category / نوع الخلل")
             arcpy.AddField_management(qa_notes_layer, "SEVERITY", "TEXT", field_length=25, field_alias="Severity Level / درجة الخطورة")
+            arcpy.AddField_management(qa_notes_layer, "NOTES", "TEXT", field_length=255, field_alias="Engineering Notes / الملاحظات الهندسية")
             arcpy.AddField_management(qa_notes_layer, "DEFECT_DESC", "TEXT", field_length=255, field_alias="Defect Description / وصف الخلل الهندسي")
             arcpy.AddField_management(qa_notes_layer, "RECOMMENDED_ACTION", "TEXT", field_length=255, field_alias="Recommended Action / الإجراء المقترح للتصحيح")
             arcpy.AddField_management(qa_notes_layer, "START_INV", "DOUBLE", field_alias="Start Invert / منسوب البداية")
@@ -869,7 +891,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
             qa_copied_fields = []
             if transfer_attributes:
                 qa_managed = {
-                    "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "DEFECT_DESC",
+                    "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "NOTES", "DEFECT_DESC",
                     "RECOMMENDED_ACTION", "START_INV", "END_INV", "DROP_M",
                     "SLOPE_PCT", "PIPE_LEN", "TOPOLOGY"
                 }
@@ -894,7 +916,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
                         pass
 
             qa_insert_fields = [
-                "SHAPE@", "ORIG_FID", "DEFECT_TYPE", "SEVERITY",
+                "SHAPE@", "ORIG_FID", "DEFECT_TYPE", "SEVERITY", "NOTES",
                 "DEFECT_DESC", "RECOMMENDED_ACTION", "START_INV", "END_INV",
                 "DROP_M", "SLOPE_PCT", "PIPE_LEN", "TOPOLOGY"
             ] + qa_copied_fields
@@ -912,6 +934,7 @@ def create_flow_arrows(input_layer, output_workspace, output_layer_name,
 
                     qa_row = [
                         defect["geom"], defect["orig_fid"], defect["defect_type"], defect["severity"],
+                        defect.get("notes", defect["defect_desc"]),
                         defect["defect_desc"], defect["action"], defect["st_inv"], defect["end_inv"],
                         defect["drop_m"], defect["slope_pct"], defect["pipe_len"], defect["topology"]
                     ] + matched_attrs
@@ -1045,15 +1068,9 @@ def main():
         if invert_field == "":
             invert_field = None
 
-        flip_reversed = False
-        if arcpy.GetArgumentCount() > 9:
-            val_flip = arcpy.GetParameterAsText(9)
-            if val_flip and val_flip.lower() in ("true", "1", "yes"):
-                flip_reversed = True
-
         search_tolerance = 1.5
-        if arcpy.GetArgumentCount() > 10:
-            val_tol = arcpy.GetParameterAsText(10)
+        if arcpy.GetArgumentCount() > 9:
+            val_tol = arcpy.GetParameterAsText(9)
             if val_tol:
                 try:
                     search_tolerance = float(val_tol)
@@ -1061,10 +1078,16 @@ def main():
                     pass
 
         arrow_placement = "Midpoint (50%)"
-        if arcpy.GetArgumentCount() > 11:
-            val_place = arcpy.GetParameterAsText(11)
+        if arcpy.GetArgumentCount() > 10:
+            val_place = arcpy.GetParameterAsText(10)
             if val_place:
                 arrow_placement = val_place
+
+        flip_reversed = False
+        if arcpy.GetArgumentCount() > 11:
+            val_flip = arcpy.GetParameterAsText(11)
+            if val_flip and val_flip.lower() in ("true", "1", "yes"):
+                flip_reversed = True
 
         swap_inverts = True
         if arcpy.GetArgumentCount() > 12:
